@@ -43,6 +43,14 @@ ddk_headers(
 )
 
 ddk_headers(
+    name = "last_logs_headers",
+    hdrs = [
+        "tz_log/last_logs.h",
+    ],
+    includes = ["tz_log"]
+)
+
+ddk_headers(
     name = "hdcp_qseecom_dlkm",
     hdrs = glob([
         ":smcinvoke_kernel_headers",

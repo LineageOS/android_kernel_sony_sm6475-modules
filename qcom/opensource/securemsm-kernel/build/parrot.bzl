@@ -20,5 +20,6 @@ def define_parrot():
         extra_options = [
             "CONFIG_QCOM_SMCINVOKE",
             "CONFIG_QSEECOM",
+            "CONFIG_TZ_LAST_LOGS",
         ],
     )

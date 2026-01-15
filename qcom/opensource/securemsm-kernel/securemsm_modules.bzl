@@ -99,7 +99,10 @@ register_securemsm_module(
     name = "tz_log_dlkm",
     path = TZLOG_PATH,
     deps = [":qseecom_kernel_headers"],
-    default_srcs = ["tz_log.c"],
+    default_srcs = [
+        "last_logs.h",
+        "tz_log.c",
+    ],
 )
 
 register_securemsm_module(

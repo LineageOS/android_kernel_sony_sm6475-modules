@@ -44,6 +44,11 @@ endif
 obj-$(CONFIG_QTI_TZ_LOG) += tz_log_dlkm.o
 tz_log_dlkm-objs := tz_log/tz_log.o
 
+ifneq (, $(filter y, $(CONFIG_ARCH_PARROT)))
+    include $(SSG_MODULE_ROOT)/config/sec-kernel_defconfig_tz_last_logs.conf
+    LINUXINCLUDE += -include $(SSG_MODULE_ROOT)/config/sec-kernel_defconfig_tz_last_logs.h
+endif
+
 obj-$(CONFIG_CRYPTO_DEV_QCEDEV) += qce50_dlkm.o
 qce50_dlkm-objs := crypto-qti/qce50.o
 
