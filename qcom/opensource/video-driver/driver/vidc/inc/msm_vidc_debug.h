@@ -39,6 +39,22 @@ extern int msm_vidc_llc_bw;
 extern bool msm_vidc_fw_dump;
 extern unsigned int msm_vidc_enable_bugon;
 
+/* do not modify the log message as it is used in test scripts */
+#define FMT_STRING_SET_CTRL \
+       "%s: state %s, name %s, id 0x%x value32 %d/value64 %lld\n"
+#define FMT_STRING_STATE_CHANGE \
+       "%s: state changed to %s from %s\n"
+#define FMT_STRING_MSG_SFR \
+       "SFR Message from FW: %s\n"
+#define FMT_STRING_FAULT_HANDLER \
+       "%s: faulting address: %lx\n"
+#define FMT_STRING_SET_CAP \
+       "set cap: name: %24s, cap value: %#10llx, hfi: %#10llx\n"
+#define FMT_STRING_SYSTEM_ERROR \
+       "%s: system error received\n"
+#define FMT_STRING_BOOT_FIRMWARE_ERROR \
+       "Error booting up vidc firmware, ctrl status %#x, ctrl init %#x\n"
+
 /* To enable messages OR these values and
  * echo the result to debugfs file.
  *
