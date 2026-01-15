@@ -964,6 +964,26 @@ int cam_sensor_match_id(struct cam_sensor_ctrl_t *s_ctrl)
 	return rc;
 }
 
+static void cam_sensor_check_ois_fw(struct cam_sensor_ctrl_t *s_ctrl)
+{
+	struct cam_ois_ctrl_t *o_ctrl;
+
+	o_ctrl = kzalloc(sizeof(*o_ctrl), GFP_KERNEL);
+	if (!o_ctrl) {
+		CAM_ERR(CAM_SENSOR, "OIS ctrl alloc failed");
+		return;
+	}
+
+	memcpy(&o_ctrl->io_master_info, &s_ctrl->io_master_info,
+			sizeof(struct camera_io_master));
+	o_ctrl->io_master_info.cci_client->sid = 0xE4 >> 1;
+
+	dw9784_download_open_camera(o_ctrl);
+
+	kfree(o_ctrl);
+}
+
+
 int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 	void *arg)
 {
@@ -971,7 +991,6 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 	struct cam_control *cmd = (struct cam_control *)arg;
 	struct cam_sensor_power_ctrl_t *power_info =
 		&s_ctrl->sensordata->power_info;
-	struct cam_ois_ctrl_t o_ctrl;
 	struct timespec64 ts;
 	uint64_t ms, sec, min, hrs;
 
@@ -1101,9 +1120,7 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 		//0xE4: OIS addr； 0x34: sensor addr;
 		if (s_ctrl->sensordata->slave_info.sensor_id == 0x0766) {
 			CAM_INFO(CAM_SENSOR, "im766 check ois firmware begin");
-			memcpy((void*)(&o_ctrl.io_master_info), (void*)(&(s_ctrl->io_master_info)), sizeof(struct camera_io_master));
-			o_ctrl.io_master_info.cci_client->sid = 0xE4 >> 1;
-			dw9784_download_open_camera(&o_ctrl);
+			cam_sensor_check_ois_fw(s_ctrl);
 			s_ctrl->io_master_info.cci_client->sid = 0x34 >> 1;
 		}
 
