@@ -46,6 +46,7 @@ int nfc_parse_dt(struct device *dev, struct platform_configs *nfc_configs,
 	nfc_gpio->dwl_req = -EINVAL;
 	nfc_gpio->ven = -EINVAL;
 	nfc_gpio->clkreq = -EINVAL;
+	nfc_gpio->cold_reset = -EINVAL;
 
 	/* irq required for i2c based chips only */
 	if (interface == PLATFORM_IF_I2C) {
@@ -61,6 +62,11 @@ int nfc_parse_dt(struct device *dev, struct platform_configs *nfc_configs,
 	if ((!gpio_is_valid(nfc_gpio->ven))) {
 		pr_err("NxpDrv: %s: ven gpio invalid %d\n", __func__, nfc_gpio->ven);
 		return nfc_gpio->ven;
+	}
+	nfc_gpio->cold_reset = of_get_named_gpio(np, DTS_RESET_GPIO_STR, 0);
+	if ((!gpio_is_valid(nfc_gpio->cold_reset))) {
+			pr_err("NxpDrv: %s: cold_reset gpio invalid %d\n", __func__, nfc_gpio->cold_reset);
+			return nfc_gpio->cold_reset;
 	}
 	/* some products like sn220 does not required fw dwl pin */
 	nfc_gpio->dwl_req = of_get_named_gpio(np, DTS_FWDN_GPIO_STR, 0);

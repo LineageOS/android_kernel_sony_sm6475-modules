@@ -106,6 +106,7 @@
 #define DTS_VEN_GPIO_STR	"qcom,sn-ven"
 #define DTS_FWDN_GPIO_STR	"qcom,sn-firm"
 #define DTS_CLKREQ_GPIO_STR     "qcom,sn-clkreq"
+#define DTS_RESET_GPIO_STR      "qcom,sn-cold-reset"
 #define DTS_SZONE_STR	        "qcom,sn-szone"
 #define NFC_LDO_SUPPLY_DT_NAME		"qcom,sn-vdd-1p8"
 #define NFC_LDO_SUPPLY_NAME		"qcom,sn-vdd-1p8-supply"
@@ -229,6 +230,7 @@ struct platform_gpio {
 	unsigned int ven;
 	unsigned int clkreq;
 	unsigned int dwl_req;
+	unsigned int cold_reset;
 };
 
 // NFC LDO entries from DT
