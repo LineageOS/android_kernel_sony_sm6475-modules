@@ -1,0 +1,5 @@
+MODULE_NAME = ec617_drv
+
+obj-m := $(MODULE_NAME).o
+
+$(MODULE_NAME)-objs := etxxx_fp.o
