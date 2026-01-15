@@ -684,6 +684,7 @@ static struct snd_soc_dai_link msm_hac_wsa_cdc_dma_be_dai_links[] = {
 		.ops = &msm_common_be_ops,
 		SND_SOC_DAILINK_REG(wsa_dma_tx1),
 	},
+#if !defined(CONFIG_SND_SOC_AW882XX)
 	{
 		.name = LPASS_BE_WSA_CDC_DMA_TX_0,
 		.stream_name = LPASS_BE_WSA_CDC_DMA_TX_0,
@@ -693,6 +694,7 @@ static struct snd_soc_dai_link msm_hac_wsa_cdc_dma_be_dai_links[] = {
 		/* .no_host_mode = SND_SOC_DAI_LINK_NO_HOST, */
 		SND_SOC_DAILINK_REG(vi_feedback),
 	},
+#endif
 };
 
 static struct snd_soc_dai_link msm_wsa_cdc_dma_be_dai_links[] = {
@@ -1263,9 +1265,11 @@ static struct snd_soc_dai_link msm_tdm_dai_links[] = {
 };
 
 static struct snd_soc_dai_link msm_waipio_dai_links[
+#if !defined(CONFIG_SND_SOC_AW882XX)
 			ARRAY_SIZE(msm_wsa_cdc_dma_be_dai_links) +
 			ARRAY_SIZE(msm_wsa2_cdc_dma_be_dai_links) +
 			ARRAY_SIZE(msm_wsa_wsa2_cdc_dma_be_dai_links) +
+#endif
 			ARRAY_SIZE(msm_rx_tx_cdc_dma_be_dai_links) +
 			ARRAY_SIZE(msm_va_cdc_dma_be_dai_links) +
 			ARRAY_SIZE(ext_disp_be_dai_link) +

@@ -39,7 +39,8 @@ def define_parrot():
             "wcd937x_slave_dlkm",
             "wcd938x_dlkm",
             "wcd938x_slave_dlkm",
-            "wsa881x_dlkm"
+            "wsa881x_dlkm",
+            "aw882xx_dlkm"
         ],
         config_options = [
             "CONFIG_SND_SOC_WAIPIO",
