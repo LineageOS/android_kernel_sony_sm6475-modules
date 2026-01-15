@@ -70,6 +70,29 @@ module_entry(
     deps = ["qts"],
 )
 
+#define ddk_module() for focaltech_tp
+module_entry(
+    name = "focaltech_tp",
+    config_option = "CONFIG_TOUCH_FOCALTECH_FT3610",
+    srcs = [
+            "focaltech_touch_ft3610/focaltech_core.c",
+            "focaltech_touch_ft3610/focaltech_debug.c",
+            "focaltech_touch_ft3610/focaltech_esdcheck.c",
+            "focaltech_touch_ft3610/focaltech_ex_fun.c",
+            "focaltech_touch_ft3610/focaltech_ex_mode.c",
+            "focaltech_touch_ft3610/focaltech_flash/focaltech_upgrade_ft3610.c",
+            "focaltech_touch_ft3610/focaltech_flash.c",
+            "focaltech_touch_ft3610/focaltech_gesture.c",
+            "focaltech_touch_ft3610/focaltech_i2c.c",
+            "focaltech_touch_ft3610/focaltech_hp.c",
+            "focaltech_touch_ft3610/focaltech_point_report_check.c",
+            "focaltech_touch_ft3610/focaltech_proximity.c",
+            "focaltech_touch_ft3610/focaltech_test/focaltech_test.c",
+            "focaltech_touch_ft3610/focaltech_test/focaltech_test_ini.c",
+            "focaltech_touch_ft3610/focaltech_test/supported_ic/focaltech_test_ft3610.c"
+    ]
+)
+
 #define ddk_module() for focaltech_fts
 module_entry(
     name = "focaltech_fts",

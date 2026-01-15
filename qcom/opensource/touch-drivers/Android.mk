@@ -210,6 +210,17 @@ else ifeq ($(TARGET_BOARD_PLATFORM), sun)
        include $(DLKM_DIR)/Build_external_kernelmodule.mk
        ###########################################################
 
+       ###########################################################
+       include $(CLEAR_VARS)
+       LOCAL_SRC_FILES   := $(wildcard $(LOCAL_PATH)/**/*) $(wildcard $(LOCAL_PATH)/*)
+       LOCAL_MODULE              := focaltech_tp.ko
+       LOCAL_MODULE_KBUILD_NAME  := focaltech_tp.ko
+       LOCAL_MODULE_TAGS         := optional
+       #LOCAL_MODULE_DEBUG_ENABLE := true
+       LOCAL_MODULE_PATH         := $(KERNEL_MODULES_OUT)
+       include $(DLKM_DIR)/Build_external_kernelmodule.mk
+       ###########################################################
+
 else ifeq ($(TARGET_BOARD_PLATFORM), canoe)
 
        ###########################################################
@@ -291,13 +302,24 @@ else ifeq ($(TARGET_BOARD_PLATFORM), chora)
        include $(DLKM_DIR)/Build_external_kernelmodule.mk
        ###########################################################
 
+       ###########################################################
+       include $(CLEAR_VARS)
+       LOCAL_SRC_FILES   := $(wildcard $(LOCAL_PATH)/**/*) $(wildcard $(LOCAL_PATH)/*)
+       LOCAL_MODULE              := focaltech_tp.ko
+       LOCAL_MODULE_KBUILD_NAME  := focaltech_tp.ko
+       LOCAL_MODULE_TAGS         := optional
+       #LOCAL_MODULE_DEBUG_ENABLE := true
+       LOCAL_MODULE_PATH         := $(KERNEL_MODULES_OUT)
+       include $(DLKM_DIR)/Build_external_kernelmodule.mk
+       ###########################################################
+
 else ifeq ($(TARGET_BOARD_PLATFORM), kona)
 
        ###########################################################
        include $(CLEAR_VARS)
        LOCAL_SRC_FILES   := $(wildcard $(LOCAL_PATH)/**/*) $(wildcard $(LOCAL_PATH)/*)
-       LOCAL_MODULE              := focaltech_fts.ko
-       LOCAL_MODULE_KBUILD_NAME  := focaltech_fts.ko
+       LOCAL_MODULE              := focaltech_tp.ko
+       LOCAL_MODULE_KBUILD_NAME  := focaltech_tp.ko
        LOCAL_MODULE_TAGS         := optional
        #LOCAL_MODULE_DEBUG_ENABLE := true
        LOCAL_MODULE_PATH         := $(KERNEL_MODULES_OUT)
@@ -381,6 +403,17 @@ else ifeq ($(TARGET_BOARD_PLATFORM), blair)
        LOCAL_SRC_FILES   := $(wildcard $(LOCAL_PATH)/**/*) $(wildcard $(LOCAL_PATH)/*)
        LOCAL_MODULE              := focaltech_fts.ko
        LOCAL_MODULE_KBUILD_NAME  := focaltech_fts.ko
+       LOCAL_MODULE_TAGS         := optional
+       #LOCAL_MODULE_DEBUG_ENABLE := true
+       LOCAL_MODULE_PATH         := $(KERNEL_MODULES_OUT)
+       include $(DLKM_DIR)/Build_external_kernelmodule.mk
+       ###########################################################
+
+       ###########################################################
+       include $(CLEAR_VARS)
+       LOCAL_SRC_FILES   := $(wildcard $(LOCAL_PATH)/**/*) $(wildcard $(LOCAL_PATH)/*)
+       LOCAL_MODULE              := focaltech_tp.ko
+       LOCAL_MODULE_KBUILD_NAME  := focaltech_tp.ko
        LOCAL_MODULE_TAGS         := optional
        #LOCAL_MODULE_DEBUG_ENABLE := true
        LOCAL_MODULE_PATH         := $(KERNEL_MODULES_OUT)
@@ -516,6 +549,18 @@ else ifeq ($(TARGET_BOARD_PLATFORM), parrot)
        include $(DLKM_DIR)/Build_external_kernelmodule.mk
        ###########################################################
 
+
+       ###########################################################
+       include $(CLEAR_VARS)
+       LOCAL_SRC_FILES   := $(wildcard $(LOCAL_PATH)/**/*) $(wildcard $(LOCAL_PATH)/*)
+       LOCAL_MODULE              := focaltech_tp.ko
+       LOCAL_MODULE_KBUILD_NAME  := focaltech_tp.ko
+       LOCAL_MODULE_TAGS         := optional
+       #LOCAL_MODULE_DEBUG_ENABLE := true
+       LOCAL_MODULE_PATH         := $(KERNEL_MODULES_OUT)
+       include $(DLKM_DIR)/Build_external_kernelmodule.mk
+       ###########################################################
+
 else ifeq ($(TARGET_BOARD_PLATFORM), lahaina)
 
        ###########################################################
@@ -545,6 +590,17 @@ else ifeq ($(TARGET_BOARD_PLATFORM), lahaina)
        LOCAL_SRC_FILES   := $(wildcard $(LOCAL_PATH)/**/*) $(wildcard $(LOCAL_PATH)/*)
        LOCAL_MODULE              := focaltech_fts.ko
        LOCAL_MODULE_KBUILD_NAME  := focaltech_fts.ko
+       LOCAL_MODULE_TAGS         := optional
+       #LOCAL_MODULE_DEBUG_ENABLE := true
+       LOCAL_MODULE_PATH         := $(KERNEL_MODULES_OUT)
+       include $(DLKM_DIR)/Build_external_kernelmodule.mk
+       ###########################################################
+
+       ###########################################################
+       include $(CLEAR_VARS)
+       LOCAL_SRC_FILES   := $(wildcard $(LOCAL_PATH)/**/*) $(wildcard $(LOCAL_PATH)/*)
+       LOCAL_MODULE              := focaltech_tp.ko
+       LOCAL_MODULE_KBUILD_NAME  := focaltech_tp.ko
        LOCAL_MODULE_TAGS         := optional
        #LOCAL_MODULE_DEBUG_ENABLE := true
        LOCAL_MODULE_PATH         := $(KERNEL_MODULES_OUT)
@@ -600,6 +656,17 @@ else
        LOCAL_SRC_FILES   := $(wildcard $(LOCAL_PATH)/**/*) $(wildcard $(LOCAL_PATH)/*)
        LOCAL_MODULE              := focaltech_fts.ko
        LOCAL_MODULE_KBUILD_NAME  := focaltech_fts.ko
+       LOCAL_MODULE_TAGS         := optional
+       #LOCAL_MODULE_DEBUG_ENABLE := true
+       LOCAL_MODULE_PATH         := $(KERNEL_MODULES_OUT)
+       include $(DLKM_DIR)/Build_external_kernelmodule.mk
+       ###########################################################
+
+       ###########################################################
+       include $(CLEAR_VARS)
+       LOCAL_SRC_FILES   := $(wildcard $(LOCAL_PATH)/**/*) $(wildcard $(LOCAL_PATH)/*)
+       LOCAL_MODULE              := focaltech_tp.ko
+       LOCAL_MODULE_KBUILD_NAME  := focaltech_tp.ko
        LOCAL_MODULE_TAGS         := optional
        #LOCAL_MODULE_DEBUG_ENABLE := true
        LOCAL_MODULE_PATH         := $(KERNEL_MODULES_OUT)

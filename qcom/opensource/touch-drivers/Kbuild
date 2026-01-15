@@ -143,6 +143,33 @@ ifeq ($(CONFIG_TOUCHSCREEN_SYNAPTICS_DSX), y)
 	obj-$(CONFIG_MSM_TOUCH) += synaptics_dsx.o
 endif
 
+ifeq ($(CONFIG_TOUCH_FOCALTECH_FT3610), y)
+	LINUX_INC += -include $(TOUCH_ROOT)/focaltech_touch_ft3610/focaltech_common.h
+	LINUX_INC += -include $(TOUCH_ROOT)/focaltech_touch_ft3610/focaltech_config.h
+	LINUX_INC += -include $(TOUCH_ROOT)/focaltech_touch_ft3610/focaltech_core.h
+	LINUX_INC += -include $(TOUCH_ROOT)/focaltech_touch_ft3610/focaltech_flash.h
+	LINUX_INC += -include $(TOUCH_ROOT)/focaltech_touch_ft3610/focaltech_test/focaltech_test.h
+	LINUX_INC += -include $(TOUCH_ROOT)/focaltech_touch_ft3610/focaltech_test/focaltech_test_ini.h
+
+	focaltech_tp-y := \
+		./focaltech_touch_ft3610/focaltech_core.o \
+		./focaltech_touch_ft3610/focaltech_ex_fun.o \
+		./focaltech_touch_ft3610/focaltech_ex_mode.o \
+		./focaltech_touch_ft3610/focaltech_gesture.o \
+		./focaltech_touch_ft3610/focaltech_esdcheck.o \
+		./focaltech_touch_ft3610/focaltech_point_report_check.o \
+		./focaltech_touch_ft3610/focaltech_proximity.o \
+		./focaltech_touch_ft3610/focaltech_i2c.o \
+		./focaltech_touch_ft3610/focaltech_debug.o \
+		./focaltech_touch_ft3610/focaltech_flash.o \
+		./focaltech_touch_ft3610/focaltech_flash/focaltech_upgrade_ft3610.o \
+		./focaltech_touch_ft3610/focaltech_test/focaltech_test.o \
+		./focaltech_touch_ft3610/focaltech_test/focaltech_test_ini.o \
+		./focaltech_touch_ft3610/focaltech_test/supported_ic/focaltech_test_ft3610.o
+
+	obj-$(CONFIG_MSM_TOUCH) += focaltech_tp.o
+endif
+
 ifeq ($(CONFIG_TOUCH_FOCALTECH), y)
 	LINUX_INC += -include $(TOUCH_ROOT)/focaltech_touch/focaltech_common.h
 	LINUX_INC += -include $(TOUCH_ROOT)/focaltech_touch/focaltech_config.h

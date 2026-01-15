@@ -44,6 +44,7 @@ def define_sun(t,v):
             "goodix_ts",
             "st_fts",
             "focaltech_fts",
+            "focaltech_tp",
             "qts"
         ],
         config_options = [
@@ -54,6 +55,7 @@ def define_sun(t,v):
             "CONFIG_TOUCHSCREEN_ATMEL_MXT",
             "CONFIG_TOUCHSCREEN_ST",
             "CONFIG_TOUCH_FOCALTECH",
+            "CONFIG_TOUCH_FOCALTECH_FT3610",
             "CONFIG_QTS_ENABLE",
             "CONFIG_TOUCHSCREEN_DUMMY"
         ],
@@ -143,6 +145,7 @@ def define_chora(t,v):
             "dummy_ts",
             "goodix_ts",
             "focaltech_fts",
+            "focaltech_tp",
             "qts"
         ],
         config_options = [
@@ -151,6 +154,7 @@ def define_chora(t,v):
             "CONFIG_MSM_TOUCH",
             "CONFIG_TOUCHSCREEN_GOODIX_BRL",
             "CONFIG_TOUCH_FOCALTECH",
+            "CONFIG_TOUCH_FOCALTECH_FT3610",
             "CONFIG_QTS_ENABLE",
             "CONFIG_TOUCHSCREEN_DUMMY"
         ],
@@ -187,6 +191,7 @@ def define_blair(t,v):
             "nt36xxx-i2c",
             "goodix_ts",
             "focaltech_fts",
+            "focaltech_tp",
             "synaptics_tcm_ts"
         ],
         config_options = [
@@ -196,6 +201,7 @@ def define_blair(t,v):
             "CONFIG_TOUCHSCREEN_NT36XXX_I2C",
             "CONFIG_TOUCHSCREEN_GOODIX_BRL",
             "CONFIG_TOUCH_FOCALTECH",
+            "CONFIG_TOUCH_FOCALTECH_FT3610",
             "CONFIG_TOUCHSCREEN_SYNAPTICS_TCM"
         ],
 )
@@ -210,6 +216,7 @@ def define_parrot(t,v):
 	    "goodix_ts",
 	    "qts",
 	    "focaltech_fts",
+        "focaltech_tp",
 	    "st_fts"
         ],
         config_options = [
@@ -221,6 +228,7 @@ def define_parrot(t,v):
 	    "CONFIG_TOUCHSCREEN_GOODIX_BRL",
 	    "CONFIG_QTS_ENABLE",
 	    "CONFIG_TOUCH_FOCALTECH",
+        "CONFIG_TOUCH_FOCALTECH_FT3610",
 	    "CONFIG_TOUCHSCREEN_ST"
         ],
 )
@@ -233,7 +241,8 @@ def define_lahaina(t,v):
         modules = [
             "nt36xxx-i2c",
 	    "qts",
-	    "focaltech_fts"
+	    "focaltech_fts",
+        "focaltech_tp",
         ],
         config_options = [
             "TOUCH_DLKM_ENABLE",
@@ -242,6 +251,7 @@ def define_lahaina(t,v):
 	    "CONFIG_QTS_ENABLE",
             "CONFIG_TOUCHSCREEN_NT36XXX_I2C",
 	    "CONFIG_TOUCH_FOCALTECH",
+        "CONFIG_TOUCH_FOCALTECH_FT3610",
         ],
 )
 
