@@ -785,6 +785,11 @@ int nfc_dev_flush(struct file *pfile, fl_owner_t id)
 
 	if (!nfc_dev)
 		return -ENODEV;
+
+	if (device_may_wakeup(&nfc_dev->i2c_dev.client->dev)){
+		pm_wakeup_event(&nfc_dev->i2c_dev.client->dev, WAKEUP_FLUSH_TIMEOUT);
+	}
+
 	/*
 	 * release blocked user thread waiting for pending read during close
 	 */
