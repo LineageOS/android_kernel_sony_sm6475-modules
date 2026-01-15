@@ -963,25 +963,32 @@ int dw9784_wait_check_register(unsigned short reg, unsigned short ref)
 
 void dw9784_fw_read(void)
 {
+	u16 *buf_R;
+	int i;
 
-	/* Read the data of fw memory using register */
-	unsigned short buf_R[10240];
-	int i = 0;
+	buf_R = kcalloc(10240, sizeof(*buf_R), GFP_KERNEL);
+	if (!buf_R) {
+		logi("dw9784_fw_read: no memory");
+		return;
+	}
+
 	write_reg_16bit_value_16bit(0xD001, 0x0000); /* dsp mode */
 	os_mdelay(1);
 	dw9784_flash_acess();
-	logi("dw9784_fw_read");
-	/* FW Register Read */
-	for (i = 0; i < 10240; i++) {
-		read_reg_16bit_value_16bit(0x2000+i, buf_R+i);
+
+	for (i = 0; i < 10240; i++)
+		read_reg_16bit_value_16bit(0x2000 + i, &buf_R[i]);
+
+	for (i = 0; i < 10240; i += 0x10) {
+		logi("[dw9784_fw_read] %04X = %04X %04X %04X %04X %04X %04X %04X %04X %04X %04X %04X %04X %04X %04X %04X %04X",
+		     0x2000 + i,
+		     buf_R[i + 0], buf_R[i + 1], buf_R[i + 2], buf_R[i + 3],
+		     buf_R[i + 4], buf_R[i + 5], buf_R[i + 6], buf_R[i + 7],
+		     buf_R[i + 8], buf_R[i + 9], buf_R[i + 10], buf_R[i + 11],
+		     buf_R[i + 12], buf_R[i + 13], buf_R[i + 14], buf_R[i + 15]);
 	}
 
-	for (i = 0; i < 10240; i+= 0x10) {
-		/* log for debug */
-		logi("[dw9784_fw_read] %04X = %04X %04X %04X %04X %04X %04X %04X %04X %04X %04X %04X %04X %04X %04X %04X %04X", 
-				0x2000 + i, buf_R[i + 0], buf_R[i + 1], buf_R[i + 2],buf_R[i + 3],buf_R[i + 4],buf_R[i + 5], buf_R[i + 6], buf_R[i + 7], 
-				buf_R[i + 8], buf_R[i + 9], buf_R[i + 10], buf_R[i + 11], buf_R[i + 12], buf_R[i + 13], buf_R[i + 14], buf_R[i + 15] ); 
-	}
+	kfree(buf_R);
 	dw9784_ois_reset();
 }
 
