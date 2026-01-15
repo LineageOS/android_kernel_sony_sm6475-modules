@@ -2,4 +2,7 @@
 M=$(PWD)
 MMC_ERROR_LOGGING=$(KERNEL_SRC)/$(M)
 
+KBUILD_EXTRA_SYMBOLS += $(OUT_DIR)/../sm6475-modules/semc/fels/Module.symvers
+ccflags-y += -I$(MMC_ERROR_LOGGING)/../../../fels/include/
+
 obj-m := mmc_error_logging.o
