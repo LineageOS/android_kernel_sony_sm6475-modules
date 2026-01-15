@@ -1,0 +1,5 @@
+#Rules to build mmc_error_logging driver
+M=$(PWD)
+MMC_ERROR_LOGGING=$(KERNEL_SRC)/$(M)
+
+obj-m := mmc_error_logging.o
