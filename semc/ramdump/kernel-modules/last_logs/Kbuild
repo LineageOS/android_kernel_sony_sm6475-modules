@@ -1,3 +1,7 @@
 #Rules to build last_logs driver
+M=$(PWD)
+LAST_LOGS_ROOT=$(KERNEL_SRC)/$(M)
+
+ccflags-y += -I$(LAST_LOGS_ROOT)/../../../../qcom/opensource/securemsm-kernel/tz_log
 
 obj-m := last_logs.o
