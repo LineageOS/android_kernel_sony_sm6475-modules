@@ -1,0 +1,7 @@
+#Rules to build FELS driver
+M=$(PWD)
+FELS=$(KERNEL_SRC)/$(M)
+
+ccflags-y += -I$(FELS)/include
+
+obj-m := fels.o
