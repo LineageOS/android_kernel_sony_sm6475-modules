@@ -9,6 +9,7 @@
  */
 
 #include <linux/init.h>
+#include <linux/minmax.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
 #include <linux/proc_fs.h>
@@ -85,9 +86,6 @@ static DECLARE_WORK(procfs_work, procfs_work_func);
 #define PROCFS_ASYNC_DELETE(x) procfs_async_cmd((x), PROCFS_CMD_DELETE)
 
 #define SLEEP_TIME_ASYNC_FINISH 10 /* ms */
-
-#define MAX(X, Y) ((X) >= (Y) ? (X) : (Y))
-#define MIN(X, Y) ((X) <= (Y) ? (X) : (Y))
 
 #define RDTAGS_NEXT_TAG(x) ((struct rtag_head *) \
 			    ALIGN((unsigned long)x + x->data_size + \
