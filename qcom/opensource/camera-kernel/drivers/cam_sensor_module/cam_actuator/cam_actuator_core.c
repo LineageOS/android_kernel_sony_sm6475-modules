@@ -231,8 +231,9 @@ int32_t cam_actuator_slaveInfo_pkt_parser(struct cam_actuator_ctrl_t *a_ctrl,
 			i2c_info->i2c_freq_mode;
 		a_ctrl->io_master_info.cci_client->sid =
 			i2c_info->slave_addr >> 1;
-		CAM_DBG(CAM_ACTUATOR, "Slave addr: 0x%x Freq Mode: %d",
-			i2c_info->slave_addr, i2c_info->i2c_freq_mode);
+		a_ctrl->is_ois_circle_test = i2c_info->reserved;
+		CAM_DBG(CAM_ACTUATOR, "Slave addr: 0x%x Freq Mode: %d is_ois_circle_test:%d",
+			i2c_info->slave_addr, i2c_info->i2c_freq_mode, a_ctrl->is_ois_circle_test);
 	} else if (a_ctrl->io_master_info.master_type == I2C_MASTER) {
 		a_ctrl->io_master_info.client->addr = i2c_info->slave_addr;
 		CAM_DBG(CAM_ACTUATOR, "Slave addr: 0x%x", i2c_info->slave_addr);
@@ -413,6 +414,29 @@ int32_t cam_actuator_publish_dev_info(struct cam_req_mgr_device_info *info)
 	info->trigger = CAM_TRIGGER_POINT_SOF;
 
 	return 0;
+}
+
+static int af_move_lens(struct camera_io_master *af_cci_master,uint16_t reg_addr, uint16_t reg_data)
+{
+       int ret = 0;
+       struct cam_sensor_i2c_reg_setting cci_i2c_setting = { 0 };
+       struct cam_sensor_i2c_reg_array reg_setting = { 0 };
+       reg_setting.reg_addr = reg_addr;
+       reg_setting.reg_data = reg_data;
+       reg_setting.delay = 0;
+       reg_setting.data_mask = 0;
+       cci_i2c_setting.size = 1;
+       cci_i2c_setting.addr_type = CAMERA_SENSOR_I2C_TYPE_BYTE;
+       cci_i2c_setting.data_type = CAMERA_SENSOR_I2C_TYPE_BYTE;
+       cci_i2c_setting.delay = 0;
+       cci_i2c_setting.read_buff = NULL;
+       cci_i2c_setting.read_buff_len = 0;
+       cci_i2c_setting.reg_setting = &reg_setting;
+       ret = camera_io_dev_write(af_cci_master,&cci_i2c_setting);
+       if(ret < 0){
+               CAM_ERR(CAM_ACTUATOR,"actuator cci write error");
+       }
+       return ret;
 }
 
 int32_t cam_actuator_i2c_pkt_parse(struct cam_actuator_ctrl_t *a_ctrl,
@@ -621,6 +645,15 @@ int32_t cam_actuator_i2c_pkt_parse(struct cam_actuator_ctrl_t *a_ctrl,
 		if (rc < 0) {
 			CAM_ERR(CAM_ACTUATOR, "Cannot apply Init settings");
 			goto end;
+		}
+
+		/*set default lens position reg[0x00]=800 for ois circle test*/
+		if (a_ctrl->is_ois_circle_test) {
+			rc = af_move_lens(&(a_ctrl->io_master_info),0x00,800);
+			CAM_DBG(CAM_ACTUATOR,"move lens to infinite after af init");
+			if(rc < 0){
+				CAM_ERR(CAM_ACTUATOR,"move lens failed");
+			}
 		}
 
 		/* Delete the request even if the apply is failed */

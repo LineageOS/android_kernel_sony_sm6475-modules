@@ -374,6 +374,7 @@ static int cam_ois_slaveInfo_pkt_parser(struct cam_ois_ctrl_t *o_ctrl,
 			ois_info->slave_addr >> 1;
 		o_ctrl->ois_fw_flag = ois_info->ois_fw_flag;
 		o_ctrl->is_ois_calib = ois_info->is_ois_calib;
+		o_ctrl->is_ois_circle_test = ois_info->is_ois_circle_test;
 		memcpy(o_ctrl->ois_name, ois_info->ois_name, OIS_NAME_LEN);
 		o_ctrl->ois_name[OIS_NAME_LEN - 1] = '\0';
 		o_ctrl->io_master_info.cci_client->retries = 3;
@@ -783,6 +784,17 @@ static int cam_ois_pkt_parse(struct cam_ois_ctrl_t *o_ctrl, void *arg)
 			} else {
 				partial_result[0] = (int8_t)rc;
 				CAM_DBG(CAM_OIS, "Passed gyro_ofs_calibration=%d", partial_result[0]);
+			}
+		}
+
+		if (o_ctrl->is_ois_circle_test) {
+			rc = circle_motion_test(o_ctrl, 120, 5, 3, 100, 15, 10);
+			if (rc < 0) {
+				CAM_ERR(CAM_OIS, "cam ois circle test failed with non-zero ng points");
+				//goto pwr_dwn;
+			} else {
+				partial_result[1] = (int8_t)rc;
+				CAM_DBG(CAM_OIS, "cam ois circle test passed with non-zero ng points=%d", partial_result[1]);
 			}
 		}
 #else

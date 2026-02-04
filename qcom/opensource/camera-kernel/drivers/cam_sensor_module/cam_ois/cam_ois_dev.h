@@ -127,6 +127,7 @@ struct cam_ois_ctrl_t {
 	char ois_name[32];
 	uint8_t ois_fw_flag;
 	uint8_t is_ois_calib;
+	uint8_t is_ois_circle_test;
 	struct cam_ois_opcode opcode;
 };
 
