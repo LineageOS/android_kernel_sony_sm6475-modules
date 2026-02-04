@@ -42,6 +42,10 @@ static const u32 cwb_irq_tbl[PINGPONG_MAX] = {SDE_NONE, INTR_IDX_PP1_OVFL,
 	INTR_IDX_PP2_OVFL, INTR_IDX_PP3_OVFL, INTR_IDX_PP4_OVFL,
 	INTR_IDX_PP5_OVFL, SDE_NONE, SDE_NONE};
 
+static const u32 dcwb_irq_tbl[PINGPONG_MAX] = {SDE_NONE, SDE_NONE,
+	SDE_NONE, SDE_NONE, SDE_NONE, SDE_NONE,
+	INTR_IDX_PP_CWB_OVFL, SDE_NONE, INTR_IDX_PP_CWB2_OVFL, SDE_NONE};
+
 /**
  * sde_rgb2yuv_601l - rgb to yuv color space conversion matrix
  *
@@ -1919,6 +1923,7 @@ static void sde_encoder_phys_wb_irq_ctrl(struct sde_encoder_phys *phys, bool ena
 	wb_cfg = wb_enc->hw_wb->caps;
 	if (wb_cfg->features & BIT(SDE_WB_HAS_DCWB)) {
 		max_num_of_irqs = 1;
+		irq_table = dcwb_irq_tbl;
 	} else {
 		max_num_of_irqs = CRTC_DUAL_MIXERS_ONLY;
 		irq_table = cwb_irq_tbl;
