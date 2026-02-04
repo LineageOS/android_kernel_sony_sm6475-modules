@@ -58,6 +58,7 @@
 #include "cam_tfe_csid.h"
 #include "cam_csid_ppi100.h"
 #include "camera_main.h"
+#include "regulator_wl2868c.h"
 
 #ifdef CONFIG_CAM_PRESIL
 extern int cam_presil_framework_dev_init_from_main(void);
@@ -103,6 +104,9 @@ static const struct camera_submodule_component camera_isp[] = {
 };
 
 static const struct camera_submodule_component camera_sensor[] = {
+#ifdef CONFIG_REGULATOR_WL2868C
+	{&wl2868c_chip_init_module, &wl2868c_chip_exit_module},
+#endif
 #ifdef CONFIG_SPECTRA_SENSOR
 	{&cam_res_mgr_init, &cam_res_mgr_exit},
 	{&cam_cci_init_module, &cam_cci_exit_module},
