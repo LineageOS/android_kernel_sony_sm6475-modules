@@ -25,6 +25,7 @@
 #include <cam_sensor_io.h>
 #include "cam_debug_util.h"
 #include "cam_context.h"
+#include <linux/thermal.h>
 
 #define NUM_MASTERS 2
 #define NUM_QUEUES 2
@@ -38,12 +39,18 @@
 
 #define SENSOR_DRIVER_I2C "cam-i2c-sensor"
 #define CAMX_SENSOR_DEV_NAME "cam-sensor-driver"
+#define SONY_CAMERA_THERMAL_NAME_0 "sony_cam_back0"
 
 enum cam_sensor_state_t {
 	CAM_SENSOR_INIT,
 	CAM_SENSOR_ACQUIRE,
 	CAM_SENSOR_CONFIG,
 	CAM_SENSOR_START,
+};
+
+struct thermal_info {
+	int32_t thermal;
+	int status;
 };
 
 /**
@@ -139,6 +146,8 @@ struct cam_sensor_ctrl_t {
 		CAM_SENSOR_NAME_MAX_SIZE];
 	bool                           is_aon_user;
 	bool                           hw_no_ops;
+	struct                         thermal_info thermal_info;
+	struct                         thermal_zone_device *thermal_zone_dev;
 };
 
 /**

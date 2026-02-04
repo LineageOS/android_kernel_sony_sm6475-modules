@@ -352,6 +352,39 @@ static int cam_sensor_i2c_driver_remove(struct i2c_client *client)
 }
 #endif
 
+static int get_camera_thermal(struct thermal_zone_device *thermal, int *temp)
+{
+	int rc = 0;
+	struct cam_sensor_ctrl_t *s_ctrl = NULL;
+
+	if (!temp) {
+		pr_err("%s failed %d\n", __func__, __LINE__);
+		rc = -EPERM;
+		goto error;
+	}
+
+	if (thermal->devdata == NULL) {
+		pr_err("%s failed %d\n", __func__, __LINE__);
+		rc = -EPERM;
+		goto error;
+	}
+
+	s_ctrl = thermal->devdata;
+
+	if (s_ctrl->thermal_info.status == true) {
+		*temp = s_ctrl->thermal_info.thermal;
+	} else {
+		rc = s_ctrl->thermal_info.status;
+	}
+
+error:
+	return rc;
+}
+
+static struct thermal_zone_device_ops camera_thermal_ops = {
+	.get_temp = get_camera_thermal,
+};
+
 static int cam_sensor_component_bind(struct device *dev,
 	struct device *master_dev, void *data)
 {
@@ -359,6 +392,10 @@ static int cam_sensor_component_bind(struct device *dev,
 	struct cam_sensor_ctrl_t *s_ctrl = NULL;
 	struct cam_hw_soc_info *soc_info = NULL;
 	struct platform_device *pdev = to_platform_device(dev);
+	char *thermal_name[MAX_CAMERAS] = {SONY_CAMERA_THERMAL_NAME_0,
+			NULL,
+			NULL,
+			NULL};
 
 	/* Create sensor control structure */
 	s_ctrl = devm_kzalloc(&pdev->dev,
@@ -436,6 +473,20 @@ static int cam_sensor_component_bind(struct device *dev,
 	platform_set_drvdata(pdev, s_ctrl);
 	s_ctrl->sensor_state = CAM_SENSOR_INIT;
 	CAM_DBG(CAM_SENSOR, "Component bound successfully");
+
+	if (soc_info->index == 0) {
+		if (s_ctrl && thermal_name[0]) {
+			s_ctrl->thermal_zone_dev =
+				thermal_tripless_zone_device_register(thermal_name[0], s_ctrl, &camera_thermal_ops, 0);
+			if (IS_ERR(s_ctrl->thermal_zone_dev)) {
+				pr_err("%s thermal_zone_device_register thermal_name[0] %s %d\n", __func__, thermal_name[0] , __LINE__);
+				rc = PTR_ERR(s_ctrl->thermal_zone_dev);
+			} else {
+				s_ctrl->thermal_info.status = -ENODEV;
+				s_ctrl->thermal_info.thermal = 0;
+			}
+		}
+	}
 
 	return rc;
 

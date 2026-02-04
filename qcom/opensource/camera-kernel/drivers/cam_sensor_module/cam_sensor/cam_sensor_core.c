@@ -13,6 +13,47 @@
 #include "cam_common_util.h"
 #include "cam_packet_util.h"
 
+#define THERMAL_MULT 1000
+#define THERMAL_TEMP_MAX 85
+#define THERMAL_TEMP_MIN -20
+
+void cam_sensor_fill_thermal_zone(struct cam_sensor_ctrl_t *s_ctrl)
+{
+	int rc = 0;
+	uint32_t data = 0;
+	int8_t sensor_temperature = 0;
+	uint32_t temperature_addr = 0x013A; // TEMP_SEN_OUT Address
+	struct cam_camera_slave_info *slave_info;
+
+	slave_info = &(s_ctrl->sensordata->slave_info);
+
+	if (!slave_info) {
+		CAM_ERR(CAM_SENSOR, " failed: %pK",
+			slave_info);
+		return;
+	}
+
+	rc = camera_io_dev_read(
+		&(s_ctrl->io_master_info),
+		temperature_addr,
+		&data,
+		CAMERA_SENSOR_I2C_TYPE_WORD,  // addr_type
+		CAMERA_SENSOR_I2C_TYPE_BYTE); // data_type
+
+	sensor_temperature = (int8_t)data;
+	sensor_temperature = sensor_temperature < THERMAL_TEMP_MIN ? THERMAL_TEMP_MIN : sensor_temperature;
+	sensor_temperature = sensor_temperature > THERMAL_TEMP_MAX ? THERMAL_TEMP_MAX : sensor_temperature;
+	CAM_DBG(CAM_SENSOR, "rc %d read a: 0x%x v: %d for sensor id 0x%x:",
+		rc, temperature_addr, sensor_temperature, slave_info->sensor_id);
+
+	if (rc == 0) {
+		s_ctrl->thermal_info.thermal = sensor_temperature * THERMAL_MULT;
+		s_ctrl->thermal_info.status = true;
+	} else {
+		s_ctrl->thermal_info.status = rc;
+	}
+}
+
 
 static int cam_sensor_update_req_mgr(
 	struct cam_sensor_ctrl_t *s_ctrl,
@@ -1509,6 +1550,7 @@ int cam_sensor_power_up(struct cam_sensor_ctrl_t *s_ctrl)
 		goto cci_failure;
 	}
 
+	s_ctrl->thermal_info.status = -EINVAL;
 	return rc;
 
 cci_failure:
@@ -1574,6 +1616,7 @@ int cam_sensor_power_down(struct cam_sensor_ctrl_t *s_ctrl)
 		}
 	}
 
+	s_ctrl->thermal_info.status = -ENODEV;
 	camera_io_release(&(s_ctrl->io_master_info));
 
 	return rc;
