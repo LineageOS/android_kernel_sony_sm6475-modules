@@ -1887,6 +1887,8 @@ const char *cmd_set_prop_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-post-mode-switch-on-command",
 	"qcom,mdss-dsi-qsync-on-commands",
 	"qcom,mdss-dsi-qsync-off-commands",
+	"qcom,mdss-dsi-hbm-on-command",
+	"qcom,mdss-dsi-hbm-off-command",
 };
 
 const char *cmd_set_state_map[DSI_CMD_SET_MAX] = {
@@ -1915,6 +1917,8 @@ const char *cmd_set_state_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-post-mode-switch-on-command-state",
 	"qcom,mdss-dsi-qsync-on-commands-state",
 	"qcom,mdss-dsi-qsync-off-commands-state",
+	"qcom,mdss-dsi-hbm-on-command-state",
+	"qcom,mdss-dsi-hbm-off-command-state",
 };
 
 int dsi_panel_get_cmd_pkt_count(const char *data, u32 length, u32 *cnt)
@@ -4969,6 +4973,41 @@ int dsi_panel_post_unprepare(struct dsi_panel *panel)
 		goto error;
 	}
 error:
+	mutex_unlock(&panel->panel_lock);
+	return rc;
+}
+
+int dsi_panel_set_hbm(struct dsi_panel *panel, u32 mode)
+{
+	int rc = 0;
+	struct mipi_dsi_device *dsi;
+	int hbm_mode;
+	if (!panel) {
+		DSI_ERR("hbm invalid params\n");
+		return -EINVAL;
+	}
+	dsi = &panel->mipi_device;
+	if (mode == 1)
+		hbm_mode = DSI_CMD_SET_HBM_ON;
+	else
+		hbm_mode = DSI_CMD_SET_HBM_OFF;
+	mutex_lock(&panel->panel_lock);
+	if (!dsi_panel_initialized(panel)) {
+		DSI_ERR("hbm invalid status when set hbm mode.\n");
+		goto panel_init_err;
+	}
+	if (panel->hbm_en == mode) {
+		DSI_ERR("hbm invalid same param(s)\n");
+		goto same_param_err;
+	}
+	printk(KERN_ERR "[DDI] %s is %u\n", __func__, mode);
+	rc = dsi_panel_tx_cmd_set(panel, hbm_mode);
+	if (rc)
+		DSI_ERR("[%s] failed to send hbm cmd, rc=%d\n", panel->name, rc);
+	else
+		panel->hbm_en = mode;
+same_param_err:
+panel_init_err:
 	mutex_unlock(&panel->panel_lock);
 	return rc;
 }
