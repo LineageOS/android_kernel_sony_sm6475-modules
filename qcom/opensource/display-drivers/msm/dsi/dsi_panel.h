@@ -15,6 +15,8 @@
 #include <drm/drm_panel.h>
 #include <drm/msm_drm.h>
 #include <drm/msm_drm_pp.h>
+#include <linux/workqueue.h>
+#include <linux/interrupt.h>
 
 #include "dsi_defs.h"
 #include "dsi_ctrl_hw.h"
@@ -121,6 +123,15 @@ enum dsi_panel_physical_type {
 	DSI_DISPLAY_PANEL_TYPE_MAX,
 };
 
+/* short flag control default data */
+#define SHORT_CHATTER_CNT_START		1
+#define SHORT_DEFAULT_TARGET_CHATTER_CNT	3
+#define SHORT_DEFAULT_TARGET_CHATTER_INTERVAL	499
+#define SHORT_POWER_OFF_RETRY_INTERVAL	499
+#define SHORT_WORKER_ACTIVE		true
+#define SHORT_WORKER_PASSIVE		false
+#define SHORT_IRQF_FLAGS	(IRQF_ONESHOT | IRQF_TRIGGER_RISING)
+
 struct dsi_dfps_capabilities {
 	enum dsi_dfps_type type;
 	u32 min_refresh_rate;
@@ -198,6 +209,46 @@ struct dsi_backlight_config {
 struct dsi_reset_seq {
 	u32 level;
 	u32 sleep_ms;
+};
+
+struct dsi_reset_cfg {
+	struct dsi_reset_seq *seq;
+	u32 count;
+};
+
+struct short_detection_ctrl {
+	struct delayed_work check_work;
+	int current_chatter_cnt;
+	int target_chatter_cnt;
+	int target_chatter_check_interval;
+	int irq_num;
+	bool short_check_working;
+	bool irq_enable;
+};
+
+struct panel_specific_pdata {
+	bool cont_splash_enabled;
+
+	//struct dsi_reset_seq *sequence_touch;
+	int reset_touch_gpio;
+	int disp_err_fg_gpio;
+	u32 count_touch;
+
+	int lp11_on;
+
+	int lp11_off;
+	int touch_vddh_off;
+	int down_period;
+
+	int touch_reset_off;
+
+	struct dsi_reset_cfg on_seq;
+	struct dsi_reset_cfg off_seq;
+	bool rst_b_seq;
+	bool rst_after_pon;
+	bool display_onoff_state;
+
+	struct short_detection_ctrl short_det;
 };
 
 struct dsi_panel_reset_config {
@@ -312,6 +363,8 @@ struct dsi_panel {
 	int panel_test_gpio;
 	int power_mode;
 	enum dsi_panel_physical_type panel_type;
+
+	struct panel_specific_pdata *spec_pdata;
 
 	struct dsi_panel_ops panel_ops;
 	bool hbm_en;
@@ -439,6 +492,12 @@ int dsi_panel_get_io_resources(struct dsi_panel *panel,
 
 void dsi_panel_calc_dsi_transfer_time(struct dsi_host_common_cfg *config,
 		struct dsi_display_mode *mode, u32 frame_threshold_us);
+
+void dsi_panel_driver_oled_short_check_worker(struct work_struct *work);
+void dsi_panel_driver_oled_short_det_enable(
+			struct panel_specific_pdata *spec_pdata, bool inWork);
+void dsi_panel_driver_oled_short_det_disable(
+			struct panel_specific_pdata *spec_pdata);
 
 int dsi_panel_get_cmd_pkt_count(const char *data, u32 length, u32 *cnt);
 

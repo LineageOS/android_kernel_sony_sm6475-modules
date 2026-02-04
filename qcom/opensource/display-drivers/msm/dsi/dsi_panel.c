@@ -2395,6 +2395,23 @@ end:
 	return rc;
 }
 
+int dsi_panel_driver_parse_gpios(struct dsi_panel *panel)
+{
+	int rc = 0;
+	struct panel_specific_pdata *spec_pdata = NULL;
+
+	if (!panel) {
+			DSI_ERR("%s: Invalid input panel\n", __func__);
+			return -EINVAL;
+	}
+	spec_pdata = panel->spec_pdata;
+	spec_pdata->disp_err_fg_gpio = of_get_named_gpio(panel->panel_of_node, "somc,disp-err-flag-gpio", 0);
+	if (!gpio_is_valid(spec_pdata->disp_err_fg_gpio))
+			DSI_ERR("%s: failed get disp error flag gpio\n", __func__);
+
+	return rc;
+}
+
 static int dsi_panel_parse_gpios(struct dsi_panel *panel)
 {
 	int rc = 0;
@@ -2474,6 +2491,13 @@ static int dsi_panel_parse_gpios(struct dsi_panel *panel)
 	if (!gpio_is_valid(panel->panel_test_gpio))
 		DSI_DEBUG("%s:%d panel test gpio not specified\n", __func__,
 			 __LINE__);
+
+	rc = dsi_panel_driver_parse_gpios(panel);
+	if (rc) {
+			DSI_ERR("%s: failed to parse specific parameters, rc=%d\n",
+									__func__, rc);
+			goto error;
+	}
 
 error:
 	return rc;
@@ -3638,6 +3662,13 @@ struct dsi_panel *dsi_panel_get(struct device *parent,
 	if (!panel)
 		return ERR_PTR(-ENOMEM);
 
+	panel->spec_pdata = kzalloc(sizeof(struct panel_specific_pdata),GFP_KERNEL);
+	if (!panel->spec_pdata) {
+			DSI_ERR("%s Unable to alloc spec_pdata\n", __func__);
+			kfree(panel);
+			return ERR_PTR(-ENOMEM);
+	}
+
 	dsi_panel_setup_vm_ops(panel, trusted_vm_env);
 
 	panel->panel_of_node = of_node;
@@ -3769,6 +3800,25 @@ void dsi_panel_put(struct dsi_panel *panel)
 	kfree(panel);
 }
 
+int dsi_panel_driver_gpio_request(struct dsi_panel *panel)
+{
+	struct panel_specific_pdata *spec_pdata = NULL;
+	int rc = 0;
+
+	if (!panel) {
+			DSI_ERR("%s: Invalid input panel\n", __func__);
+			return -EINVAL;
+	}
+	spec_pdata = panel->spec_pdata;
+	if (gpio_is_valid(spec_pdata->disp_err_fg_gpio)) {
+			rc = gpio_request(spec_pdata->disp_err_fg_gpio, "disp_err_fg_gpio");
+			if (rc != 0) {
+					DSI_ERR("request disp err fg gpio failed, rc=%d\n", rc);
+			}
+	}
+	return rc;
+}
+
 int dsi_panel_drv_init(struct dsi_panel *panel,
 		       struct mipi_dsi_host *host)
 {
@@ -3815,6 +3865,12 @@ int dsi_panel_drv_init(struct dsi_panel *panel,
 			DSI_ERR("[%s] failed to register backlight, rc=%d\n",
 			       panel->name, rc);
 		goto error_gpio_release;
+	}
+
+	rc = dsi_panel_driver_gpio_request(panel);
+	if (rc) {
+			DSI_ERR("%s: failed to request gpios, rc=%d\n", __func__,rc);
+			goto error_pinctrl_deinit;
 	}
 
 	goto exit;
@@ -4842,6 +4898,32 @@ error:
 	return rc;
 }
 
+void dsi_panel_driver_post_enable(struct dsi_panel *panel)
+{
+	panel->spec_pdata->display_onoff_state = true;
+
+	if(gpio_is_valid(panel->spec_pdata->disp_err_fg_gpio)) {
+			if(gpio_get_value(panel->spec_pdata->disp_err_fg_gpio)) {
+					pr_err("%s: Error Flag Detected\n", __func__);
+					panel->spec_pdata->short_det.current_chatter_cnt = SHORT_CHATTER_CNT_START;
+					schedule_delayed_work(&panel->spec_pdata->short_det.check_work,
+							msecs_to_jiffies(panel->spec_pdata->short_det.target_chatter_check_interval));
+			}
+	}
+
+	dsi_panel_driver_oled_short_det_enable(panel->spec_pdata, SHORT_WORKER_PASSIVE);
+}
+
+void dsi_panel_driver_pre_disable(struct dsi_panel *panel)
+{
+	dsi_panel_driver_oled_short_det_disable(panel->spec_pdata);
+}
+
+void dsi_panel_driver_disable(struct dsi_panel *panel)
+{
+	panel->spec_pdata->display_onoff_state = false;
+}
+
 int dsi_panel_post_enable(struct dsi_panel *panel)
 {
 	int rc = 0;
@@ -4859,6 +4941,7 @@ int dsi_panel_post_enable(struct dsi_panel *panel)
 		       panel->name, rc);
 		goto error;
 	}
+	dsi_panel_driver_post_enable(panel);
 error:
 	mutex_unlock(&panel->panel_lock);
 	return rc;
@@ -4927,6 +5010,8 @@ int dsi_panel_disable(struct dsi_panel *panel)
 	}
 	panel->panel_initialized = false;
 	panel->power_mode = SDE_MODE_DPMS_OFF;
+
+	dsi_panel_driver_disable(panel);
 
 	mutex_unlock(&panel->panel_lock);
 	return rc;
@@ -5010,4 +5095,122 @@ same_param_err:
 panel_init_err:
 	mutex_unlock(&panel->panel_lock);
 	return rc;
+}
+
+void dsi_panel_driver_oled_short_det_enable(
+		struct panel_specific_pdata *spec_pdata, bool inwork)
+{
+	struct short_detection_ctrl *short_det = NULL;
+
+	if (spec_pdata == NULL) {
+		DSI_ERR("%s: Invalid parameter\n", __func__);
+		return;
+	}
+	short_det = &spec_pdata->short_det;
+
+	if (short_det == NULL) {
+		DSI_ERR("%s: NULL pointer detected\n", __func__);
+		return;
+	}
+
+	if (short_det->short_check_working && !inwork) {
+		DSI_DEBUG("%s: short_check_worker is already being processed.\n", __func__);
+		return;
+	}
+
+	if (short_det->irq_enable)
+		return;
+
+	short_det->irq_enable = true;
+	enable_irq(short_det->irq_num);
+
+	return;
+}
+void dsi_panel_driver_oled_short_det_disable(
+		struct panel_specific_pdata *spec_pdata)
+{
+	struct short_detection_ctrl *short_det = NULL;
+
+	if (spec_pdata == NULL) {
+		DSI_ERR("%s: Invalid parameter\n", __func__);
+		return;
+	}
+	short_det = &spec_pdata->short_det;
+
+	if (short_det == NULL) {
+		DSI_ERR("%s: NULL pointer detected\n", __func__);
+		return;
+	}
+
+	disable_irq(short_det->irq_num);
+	short_det->irq_enable = false;
+
+	return;
+}
+void dsi_panel_driver_oled_short_check_worker(struct work_struct *work)
+{
+	int rc = 0;
+	struct delayed_work *dwork;
+	struct short_detection_ctrl *short_det;
+	struct panel_specific_pdata *spec_pdata;
+
+	if (work == NULL) {
+		DSI_ERR("%s: Invalid parameter\n", __func__);
+		return;
+	}
+	dwork = to_delayed_work(work);
+
+	short_det = container_of(dwork, struct short_detection_ctrl, check_work);
+	spec_pdata = container_of(short_det, struct panel_specific_pdata, short_det);
+
+	if (spec_pdata == NULL || short_det == NULL) {
+		DSI_ERR("%s: Null pointer detected\n", __func__);
+		return;
+	}
+
+	if (!spec_pdata->display_onoff_state) {
+		DSI_ERR("%s: power status failed\n", __func__);
+		return;
+	}
+
+	if (short_det->short_check_working) {
+		DSI_DEBUG("%s: already status checked\n", __func__);
+		return;
+	}
+	short_det->short_check_working = true;
+
+	if (short_det->current_chatter_cnt == SHORT_CHATTER_CNT_START)
+		dsi_panel_driver_oled_short_det_disable(spec_pdata);
+
+	/* status check */
+	rc = gpio_get_value(spec_pdata->disp_err_fg_gpio);
+	if (rc > 0) {
+		short_det->current_chatter_cnt++;
+		DSI_ERR("%s: Short Detection [%d]\n",
+				__func__, short_det->current_chatter_cnt);
+		if (short_det->current_chatter_cnt >=
+				SHORT_DEFAULT_TARGET_CHATTER_CNT) {
+			DSI_ERR("%s: execute shutdown.\n", __func__);
+
+			/* shutdown */
+			for (;;) {
+				pm_power_off();
+				msleep(SHORT_POWER_OFF_RETRY_INTERVAL);
+			}
+			return;
+		}
+
+		short_det->short_check_working = false;
+		schedule_delayed_work(&short_det->check_work,
+			msecs_to_jiffies(short_det->target_chatter_check_interval));
+		return;
+	}
+	dsi_panel_driver_oled_short_det_enable(spec_pdata, SHORT_WORKER_ACTIVE);
+
+	/* reset count*/
+	short_det->current_chatter_cnt = 0;
+	short_det->short_check_working = false;
+
+	DSI_DEBUG("%s: short_check_worker done.\n", __func__);
+	return;
 }

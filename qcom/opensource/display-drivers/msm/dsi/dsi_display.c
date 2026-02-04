@@ -4214,6 +4214,101 @@ static bool dsi_display_validate_panel_resources(struct dsi_display *display)
 	return true;
 }
 
+static irqreturn_t dsi_panel_driver_oled_short_det_handler(int irq, void *dev)
+{
+	struct dsi_display *display = (struct dsi_display *)dev;
+	struct short_detection_ctrl *short_det = NULL;
+
+	if (dev == NULL) {
+			DSI_ERR("%s: Invalid parameter\n", __func__);
+			return IRQ_HANDLED;
+	}
+	short_det = &display->panel->spec_pdata->short_det;
+
+	if (short_det == NULL) {
+			DSI_ERR("%s: NULL pointer detected\n", __func__);
+			return IRQ_HANDLED;
+	}
+
+	DSI_ERR("%s: VREG_NG interrupt!\n", __func__);
+
+	if (gpio_get_value(display->panel->spec_pdata->disp_err_fg_gpio) == 1)
+			DSI_ERR("%s: VREG NG!!!\n", __func__);
+	else
+			return IRQ_HANDLED;
+
+	if (short_det->short_check_working) {
+			DSI_DEBUG("%s already being check work.\n", __func__);
+			return IRQ_HANDLED;
+	}
+
+	short_det->current_chatter_cnt = SHORT_CHATTER_CNT_START;
+
+	schedule_delayed_work(&short_det->check_work,
+			msecs_to_jiffies(short_det->target_chatter_check_interval));
+
+	return IRQ_HANDLED;
+}
+
+void dsi_panel_driver_oled_short_det_init_works(struct dsi_display *display)
+{
+	struct short_detection_ctrl *short_det = NULL;
+	int rc = 0;
+
+	if (display == NULL) {
+			DSI_ERR("%s: Invalid parameter\n", __func__);
+			return;
+	}
+
+	if (IS_ERR_OR_NULL(display)) {
+			pr_err("%s, display is null\n", __func__);
+			return;
+	} else if (IS_ERR_OR_NULL(display->panel)) {
+			pr_err("%s, display->panel is null\n", __func__);
+			return;
+	} else if (IS_ERR_OR_NULL(display->panel->spec_pdata)) {
+			pr_err("%s, display->panel->spec_pdata is null\n", __func__);
+			return;
+	} else if (IS_ERR_OR_NULL(&display->panel->spec_pdata->short_det)) {
+			pr_err("%s, display->panel->spec_pdata->short_det is null\n", __func__);
+			return;
+	} else short_det = &display->panel->spec_pdata->short_det;
+
+	INIT_DELAYED_WORK(&short_det->check_work,
+							dsi_panel_driver_oled_short_check_worker);
+
+	short_det->current_chatter_cnt = 0;
+	short_det->short_check_working = false;
+	short_det->target_chatter_check_interval =
+							SHORT_DEFAULT_TARGET_CHATTER_INTERVAL;
+
+	if (!gpio_is_valid(display->panel->spec_pdata->disp_err_fg_gpio)) {
+			DSI_ERR("%s: disp error flag gpio is invalid\n", __func__);
+			return;
+	}
+	short_det->irq_num = gpio_to_irq(display->panel->spec_pdata->disp_err_fg_gpio);
+
+	rc = request_irq(short_det->irq_num,
+					dsi_panel_driver_oled_short_det_handler,
+					SHORT_IRQF_FLAGS, "disp_err_fg_gpio", display);
+	if (rc < 0) {
+			DSI_ERR("Failed to irq request rc=%d\n", rc);
+			return;
+	}
+
+	dsi_panel_driver_oled_short_det_disable(display->panel->spec_pdata);
+	if (display->boot_disp->boot_disp_en)
+			dsi_panel_driver_oled_short_det_enable(
+					display->panel->spec_pdata, SHORT_WORKER_PASSIVE);
+	//For error flag already rised in xboot case
+	if(gpio_get_value(display->panel->spec_pdata->disp_err_fg_gpio)) {
+			DSI_ERR("%s: Error Flag Detected\n", __func__);
+			short_det->current_chatter_cnt = SHORT_CHATTER_CNT_START;
+			schedule_delayed_work(&short_det->check_work,
+					msecs_to_jiffies(short_det->target_chatter_check_interval));
+	}
+}
+
 static int dsi_display_res_init(struct dsi_display *display)
 {
 	int rc = 0;
@@ -4281,6 +4376,8 @@ static int dsi_display_res_init(struct dsi_display *display)
 		phy->cfg.split_link.num_sublinks = host->split_link.num_sublinks;
 		phy->cfg.split_link.lanes_per_sublink = host->split_link.lanes_per_sublink;
 	}
+
+	dsi_panel_driver_oled_short_det_init_works(display);
 
 	rc = dsi_display_parse_lane_map(display);
 	if (rc) {
