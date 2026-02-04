@@ -1698,7 +1698,9 @@ static int32_t cam_cci_read_bytes_v_1_2(struct v4l2_subdev *sd,
 		goto ERROR;
 	}
 
+	mutex_lock(&cci_dev->cci_master_info[master].mutex_q[QUEUE_1]);
 	reinit_completion(&cci_dev->cci_master_info[master].rd_done);
+	mutex_unlock(&cci_dev->cci_master_info[master].mutex_q[QUEUE_1]);
 	read_bytes = read_cfg->num_byte;
 	CAM_DBG(CAM_CCI, "CCI%d_I2C_M%d Bytes to read %u",
 		cci_dev->soc_info.index, master, read_bytes);
@@ -1717,6 +1719,11 @@ static int32_t cam_cci_read_bytes_v_1_2(struct v4l2_subdev *sd,
 		}
 
 		if (read_bytes >= CCI_READ_MAX_V_1_2) {
+			if (read_cfg->data_type == 2) {
+				read_cfg->addr += CCI_READ_MAX_V_1_2 / 2;
+			} else {
+				read_cfg->addr += CCI_READ_MAX_V_1_2;
+			}
 			read_cfg->addr += CCI_READ_MAX_V_1_2;
 			read_cfg->data += CCI_READ_MAX_V_1_2;
 			read_bytes -= CCI_READ_MAX_V_1_2;
