@@ -13,6 +13,10 @@
 #include "cam_common_util.h"
 #include "cam_packet_util.h"
 
+#define IMX766_FAB_CODE_1_REG 0X3AF8
+#define IMX766_FAB_CODE_2_REG 0X3AF9
+#define IMX766_FAB1_MODULE_NAME "imx766_fab1_txd_main"
+#define IMX766_FAB3_MODULE_NAME "imx766_fab3_txd_main"
 #define THERMAL_MULT 1000
 #define THERMAL_TEMP_MAX 85
 #define THERMAL_TEMP_MIN -20
@@ -344,6 +348,11 @@ static int32_t cam_sensor_i2c_pkt_parse(struct cam_sensor_ctrl_t *s_ctrl,
 			goto end;
 		}
 
+		if ((s_ctrl->sensordata->slave_info.sensor_id == 0x766) &&
+			(csl_packet->header.request_id % 3 == 0)) {
+			cam_sensor_fill_thermal_zone(s_ctrl);
+		}
+
 		i2c_reg_settings =
 			&i2c_data->per_frame[csl_packet->header.request_id %
 				MAX_PER_FRAME_ARRAY];
@@ -400,6 +409,11 @@ static int32_t cam_sensor_i2c_pkt_parse(struct cam_sensor_ctrl_t *s_ctrl,
 			CAM_WARN(CAM_SENSOR,
 				"Rxed NOP packets without linking");
 			goto end;
+		}
+
+		if ((s_ctrl->sensordata->slave_info.sensor_id == 0x766) &&
+			(csl_packet->header.request_id % 3 == 0)) {
+			cam_sensor_fill_thermal_zone(s_ctrl);
 		}
 
 		i2c_reg_settings =
@@ -881,6 +895,9 @@ int cam_sensor_match_id(struct cam_sensor_ctrl_t *s_ctrl)
 	int rc = 0;
 	uint32_t chipid = 0;
 	struct cam_camera_slave_info *slave_info;
+	uint32_t imx766_fab_code_1 = 0;
+	uint32_t imx766_fab_code_2 = 0;
+	char* sensor_module_name = NULL;
 
 	slave_info = &(s_ctrl->sensordata->slave_info);
 
@@ -901,6 +918,41 @@ int cam_sensor_match_id(struct cam_sensor_ctrl_t *s_ctrl)
 
 	CAM_DBG(CAM_SENSOR, "%s read id: 0x%x expected id 0x%x:",
 		s_ctrl->sensor_name, chipid, slave_info->sensor_id);
+
+
+	if (chipid == 0x0766) {
+		rc = camera_io_dev_read(&(s_ctrl->io_master_info), IMX766_FAB_CODE_1_REG,
+				&imx766_fab_code_1, CAMERA_SENSOR_I2C_TYPE_WORD,CAMERA_SENSOR_I2C_TYPE_BYTE);
+		if (rc < 0) {
+			CAM_ERR(CAM_SENSOR, "read imx766 fab code1 failed: rc = %d", rc);
+			return rc;
+		}
+		rc = camera_io_dev_read(&(s_ctrl->io_master_info), IMX766_FAB_CODE_2_REG,
+				&imx766_fab_code_2, CAMERA_SENSOR_I2C_TYPE_WORD,CAMERA_SENSOR_I2C_TYPE_BYTE);
+		if (rc < 0) {
+				CAM_ERR(CAM_SENSOR, "read imx766 fab code2 failed: rc = %d", rc);
+				return rc;
+		}
+		/* fab3 imx766 sensor */
+		if ((imx766_fab_code_1 == 0xA8) && (imx766_fab_code_2 == 0x01)) {
+			sensor_module_name = IMX766_FAB3_MODULE_NAME;
+		} else if ((imx766_fab_code_1 == 0xB3) && (imx766_fab_code_2 == 0x01)) {
+			/* fab1 imx766 sensor */
+			sensor_module_name = IMX766_FAB1_MODULE_NAME;
+		} else if ((imx766_fab_code_1 == 0xA3) && (imx766_fab_code_2 == 0x01)) {
+			/* fab2 imx766 sensor run IMX766_FAB1_MODULE settings */
+			sensor_module_name = IMX766_FAB1_MODULE_NAME;
+		} else {
+			/* Unknown fab imx766 sensor run IMX766_FAB1_MODULE settings */
+			sensor_module_name = IMX766_FAB1_MODULE_NAME;
+			CAM_INFO(CAM_SENSOR, "Unknown fab imx766 sensor, run IMX766_FAB1_MODULE settings");
+		}
+		CAM_INFO(CAM_SENSOR, "imx766_fab_code_1 = 0x%x,imx766_fab_code_2 = 0x%x, sensor_module_name = %s, expect sensor_name = %s", imx766_fab_code_1,imx766_fab_code_2, sensor_module_name, s_ctrl->sensor_name);
+		if (strcmp(sensor_module_name, s_ctrl->sensor_name) != 0) {
+			CAM_ERR(CAM_SENSOR, "imx766 match name failed! sensor_module_name = %s, expect sensor_name = %s", sensor_module_name, s_ctrl->sensor_name);
+			return -ENODEV;
+		}
+	}
 
 	if (cam_sensor_id_by_mask(s_ctrl, chipid) != slave_info->sensor_id) {
 		CAM_WARN(CAM_SENSOR, "%s read id: 0x%x expected id 0x%x:",
