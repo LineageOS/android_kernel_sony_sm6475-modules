@@ -549,6 +549,21 @@ static int dsi_panel_wled_register(struct dsi_panel *panel,
 	return 0;
 }
 
+int qn7526a_set_display_brightness(struct mipi_dsi_device *dsi,
+                                        u16 brightness)
+{
+	u8 payload[2] = { 0, 0};
+	ssize_t err;
+	payload[0] = brightness >> 8;;
+	payload[1] = brightness & 0xff;
+	printk("[lcm] the brightness is %d,payload[0] = 0x%x,payload[1] = 0x%x\n", brightness,payload[0],payload[1]);
+	err = mipi_dsi_dcs_write(dsi, MIPI_DCS_SET_DISPLAY_BRIGHTNESS,
+								payload, sizeof(payload));
+	if (err < 0)
+			return err;
+	return 0;
+}
+
 static int dsi_panel_update_backlight(struct dsi_panel *panel,
 	u32 bl_lvl)
 {
@@ -570,7 +585,7 @@ static int dsi_panel_update_backlight(struct dsi_panel *panel,
 	if (panel->bl_config.bl_inverted_dbv)
 		bl_lvl = (((bl_lvl & 0xff) << 8) | (bl_lvl >> 8));
 
-	rc = mipi_dsi_dcs_set_display_brightness(dsi, bl_lvl);
+	rc = qn7526a_set_display_brightness(dsi, bl_lvl);
 	if (rc < 0)
 		DSI_ERR("failed to update dcs backlight:%d\n", bl_lvl);
 
@@ -631,6 +646,24 @@ error:
 	return rc;
 }
 
+int dsi_panel_driver_adjust_brightness_type(struct dsi_panel *panel, u32 bl_lvl)
+{
+	u32 reg_val = 0;
+	if( bl_lvl <= 8)
+			reg_val = 4;
+	else if(bl_lvl > 8 && bl_lvl <= 2662)
+			reg_val = 4 + (bl_lvl - 8) * (2047-4) / (2662-8);
+	else
+			reg_val = 2048 + (bl_lvl - 2662) * (3010-2048) / (4095-2662);
+
+	if(reg_val < 4)
+			reg_val = 4;
+	if(reg_val > 3010)
+			reg_val = 3010;
+
+	return reg_val;
+}
+
 int dsi_panel_set_backlight(struct dsi_panel *panel, u32 bl_lvl)
 {
 	int rc = 0;
@@ -638,6 +671,8 @@ int dsi_panel_set_backlight(struct dsi_panel *panel, u32 bl_lvl)
 
 	if (panel->host_config.ext_bridge_mode)
 		return 0;
+
+	bl_lvl = dsi_panel_driver_adjust_brightness_type(panel, bl_lvl);
 
 	DSI_DEBUG("backlight type:%d lvl:%d\n", bl->type, bl_lvl);
 	switch (bl->type) {
