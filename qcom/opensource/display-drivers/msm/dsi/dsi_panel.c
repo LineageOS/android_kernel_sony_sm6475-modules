@@ -39,6 +39,7 @@
 #define MIN_PREFILL_LINES      40
 #define RSCC_MODE_THRESHOLD_TIME_US 40
 #define DCS_COMMAND_THRESHOLD_TIME_US 40
+#define LP11_INIT_DELAY_TIME_1MS 1000
 
 static void dsi_dce_prepare_pps_header(char *buf, u32 pps_delay_ms)
 {
@@ -4903,6 +4904,9 @@ int dsi_panel_enable(struct dsi_panel *panel)
 	}
 
 	mutex_lock(&panel->panel_lock);
+
+	// Add 5ms delay to keep LP11 time above 1ms
+	usleep_range(LP11_INIT_DELAY_TIME_1MS, LP11_INIT_DELAY_TIME_1MS + 10);
 
 	rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_ON);
 	if (rc) {
