@@ -39,6 +39,12 @@
 
 #define SEC_PANEL_NAME_MAX_LEN  256
 
+#define TMP_BUF_SZ 128
+#define MAX_WRITE_DATA 100
+static char *res_buf;
+static int buf_sz;
+struct device virtdev;
+
 u8 dbgfs_tx_cmd_buf[SZ_4K];
 static char dsi_display_primary[MAX_CMDLINE_PARAM_LEN];
 static char dsi_display_secondary[MAX_CMDLINE_PARAM_LEN];
@@ -5622,6 +5628,427 @@ static int dsi_display_init_ctrl(struct dsi_display *display)
 		}
 	}
 
+	return rc;
+}
+
+static ssize_t dsi_display_hbm_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct dsi_display *dsi_display;
+	struct platform_device *pdev = to_platform_device(dev);
+	if (!dev || !pdev) {
+		DSI_ERR("%s: invalid param(s)\n", __func__);
+		return -EINVAL;
+	}
+	dsi_display = platform_get_drvdata(pdev);
+	if (dsi_display == NULL || dsi_display->panel == NULL) {
+		DSI_ERR("%s: invalid display\n", __func__);
+		return -EIO;
+	}
+	return scnprintf(buf, PAGE_SIZE, "%d\n", dsi_display->panel->hbm_en);
+}
+
+static ssize_t dsi_display_hbm_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct dsi_display *dsi_display;
+	struct dsi_panel *panel;
+	struct platform_device *pdev = to_platform_device(dev);
+	unsigned int mode = 0;
+	if (!dev || !pdev) {
+		DSI_ERR("%s: invalid param(s)\n", __func__);
+		return -EINVAL;
+	}
+	dsi_display = platform_get_drvdata(pdev);
+	if (dsi_display == NULL || dsi_display->panel == NULL) {
+		DSI_ERR("%s: invalid display\n", __func__);
+		return -EIO;
+	}
+	panel = dsi_display->panel;
+	if (kstrtouint(buf, 0, &mode)) {
+		DSI_ERR("%s: failed to convert when write hbm_en.\n", __func__);
+		return -EFAULT;
+	}
+	if (mode < 0 || mode > 1) {
+		DSI_ERR("%s: invalid mode when write hbm_en %u.\n", __func__,  mode);
+		return -EINVAL;
+	}
+	dsi_panel_set_hbm(panel, mode);
+	return count;
+}
+
+int dsi_panel_tx_cmd(struct dsi_panel *panel,
+				struct dsi_cmd_desc *cmds)
+{
+	int rc = 0;
+	ssize_t len;
+	const struct mipi_dsi_host_ops *ops = panel->host->ops;
+	cmds->msg.flags |= MIPI_DSI_MSG_USE_LPM;
+	len = ops->transfer(panel->host, &cmds->msg);
+	if (len < 0) {
+		rc = len;
+		pr_err("failed to transfer cmds, rc=%d\n", rc);
+		goto error;
+	}
+	if (cmds->post_wait_ms)
+		msleep(cmds->post_wait_ms);
+error:
+	return rc;
+}
+
+int dsi_panel_rx_cmd(struct dsi_display *display, struct dsi_cmd_desc *cmds,
+				struct dsi_display_ctrl *ctrl, char *rbuf,
+				int len)
+{
+	int rc = 0;
+	ssize_t reslen;
+	dsi_display_clk_ctrl(display->dsi_clk_handle,
+		DSI_ALL_CLKS, DSI_CLK_ON);
+	rc = dsi_display_cmd_engine_enable(display);
+	if (rc) {
+		pr_err("cmd engine enable failed\n");
+		return -EPERM;
+	}
+	cmds->ctrl_flags = (DSI_CTRL_CMD_FETCH_MEMORY |
+                            DSI_CTRL_CMD_READ | DSI_CTRL_CMD_LAST_COMMAND);
+	cmds->msg.rx_buf = rbuf;
+	cmds->msg.rx_len = len;
+	pr_debug("%s: tx = %x\n", __func__, *(char *)(cmds->msg.tx_buf));
+	reslen = dsi_ctrl_cmd_transfer(ctrl->ctrl, cmds);
+	if (reslen < 0) {
+		rc = reslen;
+		pr_err("%s: failed to transfer cmds, rc=%d\n", __func__, rc);
+		goto error;
+	}
+	if (cmds->post_wait_ms)
+		msleep(cmds->post_wait_ms);
+	pr_debug("%s: rx = %x\n", __func__, *(char *)(cmds->msg.rx_buf));
+	pr_debug("%s: flags = %d, post_wait_ms = %d, rbuf = %x\n", __func__,
+		cmds->msg.flags, cmds->post_wait_ms, *rbuf);
+	dsi_display_cmd_engine_disable(display);
+	dsi_display_clk_ctrl(display->dsi_clk_handle,
+		DSI_ALL_CLKS, DSI_CLK_OFF);
+error:
+	return rc;
+}
+
+static void update_res_buf(char *string)
+{
+	res_buf = krealloc(res_buf, buf_sz + strnlen(string, TMP_BUF_SZ) + 1,
+								GFP_KERNEL);
+	if (!res_buf) {
+		pr_err("%s: Failed to allocate buffer\n", __func__);
+		return;
+	}
+	memcpy(res_buf + buf_sz, string, strnlen(string, TMP_BUF_SZ) + 1);
+	buf_sz += strnlen(string, TMP_BUF_SZ); /* Exclude NULL termination */
+}
+
+static void reset_res_buf(void)
+{
+	kfree(res_buf);
+	res_buf = NULL;
+	buf_sz = 0;
+}
+
+static int get_parameters(const char *p, u8 *par_buf, int par_buf_size,
+								int *nbr_params)
+{
+	int ret = 0;
+	while (true) {
+		if (isspace(*p)) {
+			p++;
+		} else {
+			if (sscanf(p, "%4hhx", &par_buf[*nbr_params]) == 1) {
+				(*nbr_params)++;
+				while (isxdigit(*p) || (*p == 'x'))
+					p++;
+			}
+		}
+		if (*nbr_params > par_buf_size) {
+			update_res_buf("Too many parameters\n");
+			ret = -EINVAL;
+			goto exit;
+		}
+		if (iscntrl(*p))
+			break;
+	}
+exit:
+	return ret;
+}
+
+static int get_cmd_type(char *buf, enum dbg_cmd_type *cmd)
+{
+	int ret = 0;
+	if (!strncmp(buf, "dcs", 3))
+		*cmd = DCS;
+	else if (!strncmp(buf, "gen", 3))
+		*cmd = GEN;
+	else
+		ret = -EFAULT;
+	return ret;
+}
+
+static void print_params(int dtype, u8 reg, int len, u8 *data)
+{
+	int i = 0;
+	char tmp[TMP_BUF_SZ];
+	switch (dtype) {
+	case DTYPE_GEN_WRITE:
+		update_res_buf("GEN_WRITE\n");
+		break;
+	case DTYPE_GEN_WRITE1:
+		update_res_buf("GEN_WRITE1\n");
+		break;
+	case DTYPE_GEN_WRITE2:
+		update_res_buf("GEN_WRITE2\n");
+		break;
+	case DTYPE_GEN_LWRITE:
+		update_res_buf("GEN_LWRITE\n");
+		break;
+	case DTYPE_GEN_READ:
+		update_res_buf("GEN_READ\n");
+		break;
+	case DTYPE_GEN_READ1:
+		update_res_buf("GEN_READ1\n");
+		break;
+	case DTYPE_GEN_READ2:
+		update_res_buf("GEN_READ2\n");
+		break;
+	case DTYPE_DCS_LWRITE:
+		update_res_buf("DCS_LWRITE\n");
+		break;
+	case DTYPE_DCS_WRITE:
+		update_res_buf("DCS_WRITE\n");
+		break;
+	case DTYPE_DCS_WRITE1:
+		update_res_buf("DCS_WRITE1\n");
+		break;
+	case DTYPE_DCS_READ:
+		update_res_buf("DCS_READ\n");
+		break;
+	default:
+		snprintf(tmp, sizeof(tmp), "Unknown dtype = 0x%x\n", dtype);
+		update_res_buf(tmp);
+	}
+	if (len > 0) {
+		snprintf(tmp, sizeof(tmp), "reg=0x%.2X\n", reg);
+		update_res_buf(tmp);
+		snprintf(tmp, sizeof(tmp), "len=%d\n", len);
+		update_res_buf(tmp);
+		for (i = 0; i < len; i++) {
+			snprintf(tmp, sizeof(tmp), "data[%d]=0x%.2X\n", i,
+								data[i]);
+			update_res_buf(tmp);
+		}
+	} else {
+		update_res_buf("Something went wrong, length is zero.\n");
+		snprintf(tmp, sizeof(tmp),
+				"reg=0x%.2X, len=%d, data[0]=0x%.2X\n",
+				reg, len, data[0]);
+		update_res_buf(tmp);
+	}
+}
+
+static ssize_t dsi_display_driver_reg_read_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct dsi_display *display = dev_get_drvdata(dev);
+	struct dsi_cmd_desc dsi;
+	struct dsi_display_ctrl *m_ctrl;
+	u8 data[3]; /* No more than reg + two parameters is allowed */
+	int i = 0;
+	int j = 0;
+	int ret;
+	char *rbuf;
+	int nbr_bytes_to_read;
+	int size_rbuf = 0;
+	const char *p;
+	enum dbg_cmd_type cmd;
+	m_ctrl = &display->ctrl[display->cmd_master_idx];
+	reset_res_buf();
+	ret = get_cmd_type((char *)buf, &cmd);
+	if (ret) {
+		update_res_buf("Read - unknown type\n");
+		goto fail_free_all;
+	}
+	p = buf;
+	p = p+4;
+	/* Get nbr_bytes_to_read */
+	if (sscanf(p, "%d", &nbr_bytes_to_read) != 1) {
+		update_res_buf("Read - parameter error\n");
+		goto fail_free_all;
+	}
+	while (isxdigit(*p) || (*p == 'x'))
+		p++;
+	ret = get_parameters(p, data, ARRAY_SIZE(data), &i);
+	if (ret)
+		goto fail_free_all;
+	if (cmd == DCS) {
+		dsi.msg.type = DTYPE_DCS_READ;
+	} else {
+		if (i == 1) {
+			dsi.msg.type = DTYPE_GEN_READ1;
+		} else {
+			dsi.msg.type = DTYPE_GEN_READ2;
+		}
+	}
+	dsi.last_command = true;
+	dsi.msg.channel = 0;
+        dsi.msg.flags = 0;
+	dsi.post_wait_ms = 5;
+	dsi.msg.tx_len = i;
+	dsi.msg.tx_buf = data;
+	for (j = 0; j < i; j++)
+		pr_debug("%s: tx_buf[%d] = 0x%x\n", __func__, j,
+			(*((data)+(sizeof(u8)) * j)));
+	if (nbr_bytes_to_read <= 2)
+		size_rbuf = 4;
+	else
+		size_rbuf = nbr_bytes_to_read + 13;
+	rbuf = kcalloc(size_rbuf, sizeof(char), GFP_KERNEL);
+	if (!rbuf)
+		goto fail_free_all;
+	dsi_panel_rx_cmd(display, &dsi, m_ctrl, rbuf, nbr_bytes_to_read);
+	print_params(dsi.msg.type, data[0], nbr_bytes_to_read, (u8 *)rbuf);
+	if (rbuf)
+		kfree(rbuf);
+fail_free_all:
+	return count;
+}
+
+static ssize_t dsi_display_driver_reg_read_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	return scnprintf(buf, PAGE_SIZE, "%s\n", res_buf);
+}
+
+static ssize_t dsi_display_driver_reg_write_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct dsi_display *display = dev_get_drvdata(dev);
+	const char *p;
+	enum dbg_cmd_type cmd;
+	u8 data[MAX_WRITE_DATA];
+	int i = 0;
+	int ret;
+	struct dsi_cmd_desc dsi;
+	struct dsi_display_ctrl *m_ctrl;
+	char *rbuf;
+	int size_rbuf = 0;
+	int nbr_bytes_to_write;
+	m_ctrl = &display->ctrl[display->cmd_master_idx];
+	reset_res_buf();
+	ret = get_cmd_type((char *)buf, &cmd);
+	if (ret) {
+		update_res_buf("Write - unknown type\n");
+		goto fail_free_all;
+	}
+	p = buf;
+	p = p+4;
+	/* Get first param, Register */
+	if (sscanf(p, "%4hhx", &data[0]) != 1) {
+		update_res_buf("Write - parameter error\n");
+		goto fail_free_all;
+	}
+	i++;
+	while (isxdigit(*p) || (*p == 'x'))
+		p++;
+	ret = get_parameters(p, data, ARRAY_SIZE(data) - 1, &i);
+	if (ret)
+		goto fail_free_all;
+	if (cmd == DCS) {
+		if (i == 1) {
+			dsi.msg.type = DTYPE_DCS_WRITE;;
+		} else if (i == 2) {
+			dsi.msg.type = DTYPE_DCS_WRITE1;
+		} else {
+			dsi.msg.type = DTYPE_DCS_LWRITE;
+		}
+	} else {
+		if (i == 1) {
+			dsi.msg.type = DTYPE_GEN_WRITE1;
+		} else if (i == 2) {
+			dsi.msg.type = DTYPE_GEN_WRITE2;
+		} else {
+			dsi.msg.type = DTYPE_GEN_LWRITE;
+		}
+	}
+	dsi.last_command = true;
+	dsi.msg.channel = 0;
+	dsi.msg.flags = 0;
+	dsi.post_wait_ms = 0;
+	dsi.msg.tx_len = i;
+	dsi.msg.tx_buf = data;
+	pr_debug("%s: last = %d, vc = %d, ack = %d, wait = %d, dlen = %zd\n",
+		__func__,
+		dsi.last_command, dsi.msg.channel, dsi.msg.flags, dsi.post_wait_ms,
+		dsi.msg.tx_len);
+	dsi_panel_tx_cmd(display->panel, &dsi);
+	/* Get nbr_bytes_to_write */
+	if (sscanf(p, "%d", &nbr_bytes_to_write) != 1) {
+		update_res_buf("Write - parameter error\n");
+		goto fail_free_all;
+	}
+	if (nbr_bytes_to_write <= 2)
+		size_rbuf = 4;
+	else
+		size_rbuf = nbr_bytes_to_write + 13;
+	rbuf = kcalloc(size_rbuf, sizeof(char), GFP_KERNEL);
+	if (!rbuf)
+		goto fail_free_all;
+	dsi_panel_rx_cmd(display, &dsi, m_ctrl, rbuf, nbr_bytes_to_write);
+	print_params(dsi.msg.type, data[0], i, (u8 *)dsi.msg.tx_buf);
+fail_free_all:
+	pr_err("END\n");
+	return count;
+}
+
+static ssize_t dsi_panel_driver_reg_write_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	return scnprintf(buf, PAGE_SIZE, "%s\n", res_buf);
+}
+
+static struct device_attribute panel_attributes[] = {
+	__ATTR(hbm_mode, S_IRUGO | S_IWUSR, dsi_display_hbm_show, dsi_display_hbm_store),
+	__ATTR(panel_reg_read,  S_IRUSR|S_IRGRP|S_IWUSR|S_IWGRP, dsi_display_driver_reg_read_show, dsi_display_driver_reg_read_store),
+	__ATTR(panel_reg_write,  S_IRUSR|S_IRGRP|S_IWUSR|S_IWGRP, dsi_panel_driver_reg_write_show, dsi_display_driver_reg_write_store),
+};
+
+int dsi_display_register_attributes(struct device *dev)
+{
+	int i;
+	for (i = 0; i < ARRAY_SIZE(panel_attributes); i++){
+		if (device_create_file(dev, panel_attributes + i)){
+			goto error;
+		}
+	}
+	return 0;
+error:
+	dev_err(dev, "%s: Unable to create interface\n", __func__);
+	for (--i; i >= 0 ; i--)
+		device_remove_file(dev, panel_attributes + i);
+	return -ENODEV;
+}
+
+int dsi_display_create_fs(struct dsi_display *display)
+{
+	int rc = 0;
+	char *path_name = "dsi_panel_driver";
+	dev_set_name(&virtdev, "%s", path_name);
+	rc = device_register(&virtdev);
+	if (rc) {
+		pr_err("%s: device_register rc = %d\n", __func__, rc);
+		goto err;
+	}
+	rc = dsi_display_register_attributes(&virtdev);
+	if (rc) {
+		device_unregister(&virtdev);
+		goto err;
+	}
+	dev_set_drvdata(&virtdev, display);
+err:
 	return rc;
 }
 
