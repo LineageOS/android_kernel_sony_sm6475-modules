@@ -15,6 +15,7 @@
 #include "cam_res_mgr_api.h"
 #include "cam_common_util.h"
 #include "cam_packet_util.h"
+#include "cam_ois_dw9784/dw9784_ois.h"
 
 int32_t cam_ois_construct_default_power_setting(
 	struct cam_sensor_power_ctrl_t *power_info)
@@ -234,6 +235,24 @@ static int cam_ois_update_time(struct i2c_settings_array *i2c_set)
 
 	list_for_each_entry(i2c_list,
 		&(i2c_set->list_head), list) {
+#if 1
+		size = i2c_list->i2c_settings.size;
+		/* qtimer is (4 * 2)bytes so validate here*/
+		if (size < 4) {
+			CAM_ERR(CAM_OIS, "Invalid write time settings:%d", size);
+			return -EINVAL;
+		}
+
+		for (int index = size-1; index>= 0; index--) {
+			i2c_list->i2c_settings.reg_setting[index].reg_data = qtime_ns & 0xFFFF;
+			qtime_ns = (qtime_ns >> 16);
+		}
+
+		for (i = 0; i < size; i++) {
+			CAM_DBG(CAM_OIS, "qtimer i=[%d] size=%d reg[%x]=[%x]",
+				i, size, i2c_list->i2c_settings.reg_setting[i].reg_addr, i2c_list->i2c_settings.reg_setting[i].reg_data);
+		}
+#else
 		if (i2c_list->op_code ==  CAM_SENSOR_I2C_WRITE_SEQ) {
 			size = i2c_list->i2c_settings.size;
 			/* qtimer is 8 bytes so validate here*/
@@ -249,6 +268,7 @@ static int cam_ois_update_time(struct i2c_settings_array *i2c_set)
 				qtime_ns >>= 8;
 			}
 		}
+#endif
 	}
 
 	return rc;
@@ -270,6 +290,16 @@ static int cam_ois_apply_settings(struct cam_ois_ctrl_t *o_ctrl,
 		CAM_ERR(CAM_OIS, " Invalid settings");
 		return -EINVAL;
 	}
+
+#if 0 //for debug if need
+	list_for_each_entry(i2c_list,
+		&(i2c_set->list_head), list) {
+		for (i = 0; i < i2c_list->i2c_settings.size; i++) {
+			CAM_DBG(CAM_OIS, "cam_ois_apply_settings op = %d, index=%d size=%d,reg[%x]=%x", i2c_list->op_code, i, i2c_list->i2c_settings.size,
+				i2c_list->i2c_settings.reg_setting[i].reg_addr, i2c_list->i2c_settings.reg_setting[i].reg_data);
+		}
+	}
+#endif
 
 	list_for_each_entry(i2c_list,
 		&(i2c_set->list_head), list) {
@@ -307,6 +337,16 @@ static int cam_ois_apply_settings(struct cam_ois_ctrl_t *o_ctrl,
 					CAM_ERR(CAM_OIS,
 						"i2c poll apply setting Fail");
 					return rc;
+				} else if (rc == 0) {
+					CAM_DBG(CAM_OIS,
+						"i2c poll success for ois: address 0x%4X, data 0x%4X",
+						i2c_list->i2c_settings.reg_setting[i].reg_addr,
+						i2c_list->i2c_settings.reg_setting[i].reg_data);
+				} else if (rc == 1) {
+					CAM_DBG(CAM_OIS,
+						"i2c poll failed, ois not in right status: address 0x%4X, data 0x%4X",
+						i2c_list->i2c_settings.reg_setting[i].reg_addr,
+						i2c_list->i2c_settings.reg_setting[i].reg_data);
 				}
 			}
 		}
@@ -507,6 +547,7 @@ static int cam_ois_pkt_parse(struct cam_ois_ctrl_t *o_ctrl, void *arg)
 		(struct cam_ois_soc_private *)o_ctrl->soc_info.soc_private;
 	struct cam_sensor_power_ctrl_t  *power_info = &soc_private->power_info;
 	size_t                           packet_size = 0;
+	static int8_t                                   partial_result[2] = {-1, -1};
 
 	ioctl_ctrl = (struct cam_control *)arg;
 	if (copy_from_user(&dev_config,
@@ -727,6 +768,24 @@ static int cam_ois_pkt_parse(struct cam_ois_ctrl_t *o_ctrl, void *arg)
 			}
 		}
 
+#if 1
+		rc = dw9784_download_open_camera(o_ctrl); //init settings
+		if (rc != 0) {
+			CAM_ERR(CAM_OIS, "Failed OIS FW Download rc:%d", rc);
+			goto pwr_dwn;
+		}
+
+		if (o_ctrl->is_ois_calib) {
+			rc = dw9784_gyro_ofs_calibration(o_ctrl);
+			if (rc < 0) {
+				CAM_ERR(CAM_OIS, "Failed gyro_ofs_calibration");
+				goto pwr_dwn;
+			} else {
+				partial_result[0] = (int8_t)rc;
+				CAM_DBG(CAM_OIS, "Passed gyro_ofs_calibration=%d", partial_result[0]);
+			}
+		}
+#else
 		rc = cam_ois_apply_settings(o_ctrl, &o_ctrl->i2c_init_data);
 		if ((rc == -EAGAIN) &&
 			(o_ctrl->io_master_info.master_type == CCI_MASTER)) {
@@ -763,6 +822,7 @@ static int cam_ois_pkt_parse(struct cam_ois_ctrl_t *o_ctrl, void *arg)
 				CAM_DBG(CAM_OIS, "apply calib data settings success");
 			}
 		}
+#endif
 
 		rc = delete_request(&o_ctrl->i2c_fwinit_data);
 		if (rc < 0) {
@@ -811,6 +871,8 @@ static int cam_ois_pkt_parse(struct cam_ois_ctrl_t *o_ctrl, void *arg)
 			CAM_ERR(CAM_OIS, "Cannot apply mode settings");
 			goto end;
 		}
+
+		dw9784_ois_status(o_ctrl);
 
 		rc = delete_request(i2c_reg_settings);
 		if (rc < 0) {
@@ -939,6 +1001,47 @@ static int cam_ois_pkt_parse(struct cam_ois_ctrl_t *o_ctrl, void *arg)
 				"Fail deleting Mode data: rc: %d", rc);
 			goto end;
 		}
+		break;
+	}
+	case CAM_OIS_PACKET_OPCODE_READ_FAC_RESULT:{
+		struct cam_buf_io_cfg *io_cfg;
+
+		if (o_ctrl->cam_ois_state < CAM_OIS_CONFIG) {
+			rc = -EINVAL;
+			CAM_WARN(CAM_OIS,
+				"Not in right state to read OIS: %d",
+				o_ctrl->cam_ois_state);
+			return rc;
+		}
+		CAM_DBG(CAM_OIS, "number of I/O configs: %d:",
+			csl_packet->num_io_configs);
+		if (csl_packet->num_io_configs == 0) {
+			CAM_ERR(CAM_OIS, "No I/O configs to process");
+			rc = -EINVAL;
+			return rc;
+		}
+
+		io_cfg = (struct cam_buf_io_cfg *) ((uint8_t *)
+			&csl_packet->payload_flex +
+			csl_packet->io_configs_offset);
+
+		/* validate read data io config */
+		if (io_cfg == NULL) {
+			CAM_ERR(CAM_OIS, "I/O config is invalid(NULL)");
+			rc = -EINVAL;
+			return rc;
+		}
+
+		uint64_t partial64bit = partial_result[1] << 8 | partial_result[0];
+		CAM_DBG(CAM_OIS, "partial_result:[0x%x]-[0x%x] total=%x", partial_result[0], partial_result[1], partial64bit);
+
+		rc = cam_sensor_util_write_qtimer_to_io_buffer(partial64bit, &io_cfg[0]);
+		if (rc < 0) {
+			CAM_ERR(CAM_OIS,
+				"write partial_result failed rc: %d", rc);
+			return rc;
+		}
+
 		break;
 	}
 	default:

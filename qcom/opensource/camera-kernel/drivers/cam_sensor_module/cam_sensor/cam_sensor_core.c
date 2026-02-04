@@ -12,6 +12,7 @@
 #include "cam_trace.h"
 #include "cam_common_util.h"
 #include "cam_packet_util.h"
+#include "../cam_ois/cam_ois_dw9784/dw9784_ois.h"
 
 #define IMX766_FAB_CODE_1_REG 0X3AF8
 #define IMX766_FAB_CODE_2_REG 0X3AF9
@@ -968,7 +969,9 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 {
 	int rc = 0, pkt_opcode = 0;
 	struct cam_control *cmd = (struct cam_control *)arg;
-	struct cam_sensor_power_ctrl_t *power_info = NULL;
+	struct cam_sensor_power_ctrl_t *power_info =
+		&s_ctrl->sensordata->power_info;
+	struct cam_ois_ctrl_t o_ctrl;
 	struct timespec64 ts;
 	uint64_t ms, sec, min, hrs;
 
@@ -1092,6 +1095,16 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 				cam_sensor_power_down(s_ctrl);
 				goto free_power_settings;
 			}
+		}
+
+		//match id success, We can check whether the FW needs to be updated
+		//0xE4: OIS addr； 0x34: sensor addr;
+		if (s_ctrl->sensordata->slave_info.sensor_id == 0x0766) {
+			CAM_INFO(CAM_SENSOR, "im766 check ois firmware begin");
+			memcpy((void*)(&o_ctrl.io_master_info), (void*)(&(s_ctrl->io_master_info)), sizeof(struct camera_io_master));
+			o_ctrl.io_master_info.cci_client->sid = 0xE4 >> 1;
+			dw9784_download_open_camera(&o_ctrl);
+			s_ctrl->io_master_info.cci_client->sid = 0x34 >> 1;
 		}
 
 		rc = cam_sensor_power_down(s_ctrl);
