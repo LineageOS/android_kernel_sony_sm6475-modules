@@ -1,0 +1,7 @@
+MODULE_NAME = tznl_bypass
+
+obj-m := $(MODULE_NAME).o
+
+$(MODULE_NAME)-objs := tznl_bypass_main.o
+$(MODULE_NAME)-objs += thermal_zone.o
+$(MODULE_NAME)-objs += netlink.o
