@@ -164,6 +164,18 @@ static int msm_vidc_set_buses(struct msm_vidc_inst* inst)
 			temp->power.sys_cache_bw = core->platform->data.bus_bw_nrt[0];
 		}
 
+		if (is_secure_session(inst)) {
+			/*
+			 * 1080p 3.5MB/frame*60fps 210MB/S = 210000 kBps
+			 * 1080p 3.5MB/frame*60fps x2 420MB/S = 420000 kBps
+			 * 2160p 14MB/frame*60fps 840MB/S = 840000 kBps
+			 * 2160p 14MB/frame*60fps x2 1680MB/S = 1680000 kBps
+                         * total_bw_llcc += 4500000;
+			 */
+			total_bw_ddr += 4500000;
+			total_bw_llcc += 4500000;
+		}
+
 		total_bw_ddr += temp->power.ddr_bw;
 		total_bw_llcc += temp->power.sys_cache_bw;
 	}
