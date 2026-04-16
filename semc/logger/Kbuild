@@ -1,0 +1,7 @@
+#Rules to build APPSLOG_KMSG driver
+M=$(PWD)
+APPSLOG_KMSG=$(KERNEL_SRC)/$(M)
+
+ccflags-y += -I$(APPSLOG_KMSG)/include
+
+obj-m := appslog_kmsg.o
