@@ -12,6 +12,13 @@
  * option) any later version.
  */
 
+/*
+* Copyright 2026 Sony Corporation
+* NOTE: This file has been modified by Sony Corporation
+* Modifications are licensed under the License.
+*/
+
+
 /* #define DEBUG */
 
 #include <linux/module.h>
@@ -982,8 +989,6 @@ void aw_dev_init_cmm(struct aw_device *aw_pa)
 
 int aw882xx_init(struct aw_device *aw_pa)
 {
-	int ret = 0;
-
 	aw_dev_init_cmm(aw_pa);
 
 	switch (aw_pa->chip_id) {
@@ -1016,11 +1021,7 @@ int aw882xx_init(struct aw_device *aw_pa)
 		return -EINVAL;
 	}
 
-	ret = aw882xx_dev_check_ef_lock(aw_pa);
-	if (ret < 0) {
-		aw_dev_err(aw_pa->dev, "ef has not been locked");
-		return ret;
-	}
+	aw882xx_dev_check_ef_lock(aw_pa);
 
 	return aw882xx_dev_probe(aw_pa);
 }
