@@ -5,7 +5,11 @@
  * Copyright (c) 2023 Huaqin Inc.
  * Author: Lan Degao<landegao@huaqin.com>
  */
-
+/*
+* Copyright 2026 Sony Corporation
+* NOTE: This file has been modified by Sony Corporation
+* Modifications are licensed under the License.
+*/
 #include "regulator_wl2868c.h"
 #include <linux/mutex.h>
 
@@ -16,8 +20,6 @@ struct mutex i2c_control_mutex;
 
 enum CHIP_NUM {
 	WL2868C,
-	ET5907,
-	FAN53870,
 	CHIP_NUM_MAX,
 };
 
@@ -29,12 +31,6 @@ enum CHIP_NUM {
 		switch (CI) { \
 		case WL2868C: \
 			pr_info("[PMIC-WL2868C]:%d " fmt, __LINE__, ##__VA_ARGS__); \
-			break; \
-		case ET5907: \
-			pr_info("[PMIC-ET5907]:%d " fmt, __LINE__, ##__VA_ARGS__); \
-			break; \
-		case FAN53870: \
-			pr_info("[PMIC-FAN53870]:%d " fmt, __LINE__, ##__VA_ARGS__); \
 			break; \
 		default: \
 			pr_info("[PMIC-NOTMATCH]:%d " fmt, __LINE__, ##__VA_ARGS__); \
@@ -68,8 +64,6 @@ enum CHIP_NUM {
 		.uV_step = step, \
 	}
 
-//static struct regmap *wl2868c_regmap = NULL;
-
 static struct ldo_volt_range wl_range[REGULATOR_MAX] = {
 	VOLT_RANGE(0, 496000,  1512000, 8000),
 	VOLT_RANGE(1, 496000,  1512000, 8000),
@@ -80,30 +74,8 @@ static struct ldo_volt_range wl_range[REGULATOR_MAX] = {
 	VOLT_RANGE(6, 1504000, 3544000, 8000),
 };
 
-static struct ldo_volt_range et_range[REGULATOR_MAX] = {
-	VOLT_RANGE(0, 600000,  1800000, 6000),
-	VOLT_RANGE(1, 600000,  1800000, 6000),
-	VOLT_RANGE(2, 1200000, 3750000, 10000),
-	VOLT_RANGE(3, 1200000, 3750000, 10000),
-	VOLT_RANGE(4, 1200000, 3750000, 10000),
-	VOLT_RANGE(5, 1200000, 3750000, 10000),
-	VOLT_RANGE(6, 1200000, 3750000, 10000),
-};
-
-static struct ldo_volt_range fan_range[REGULATOR_MAX] = {
-	VOLT_RANGE(0, 800000,  1500000, 8000),
-	VOLT_RANGE(1, 800000,  1500000, 8000),
-	VOLT_RANGE(2, 1500000, 3400000, 8000),
-	VOLT_RANGE(3, 1500000, 3400000, 8000),
-	VOLT_RANGE(4, 1500000, 3400000, 8000),
-	VOLT_RANGE(5, 1500000, 3400000, 8000),
-	VOLT_RANGE(6, 1500000, 3400000, 8000),
-};
-
 static struct chip_info pmic_chip[CHIP_NUM_MAX] = {
 	CHIP(WL2868C,  0x2F, 0x82, 0x00, 0x0E, 0x03, wl_range),
-	CHIP(ET5907,   0x35, 0x01, 0x00, 0x03, 0x04, et_range),
-	CHIP(FAN53870, 0x35, 0x01, 0x01, 0x03, 0x04, fan_range),
 };
 
 static const struct of_device_id wl2868c_i2c_of_match[] = {
@@ -124,37 +96,7 @@ static bool is_read_wl2868c_reg(struct device *dev, unsigned int reg)
 static bool is_write_wl2868c_reg(struct device *dev, unsigned int reg)
 {
 	switch (reg) {
-	case 0x02 ... 0x0E:
-		return true;
-	default:
-		return false;
-	}
-}
-
-static bool is_read_et5907_reg(struct device *dev, unsigned int reg)
-{
-	return true;
-}
-
-static bool is_write_et5907_reg(struct device *dev, unsigned int reg)
-{
-	switch (reg) {
-	case 0x02 ... 0x0A:
-		return true;
-	default:
-		return false;
-	}
-}
-
-static bool is_read_fan53870_reg(struct device *dev, unsigned int reg)
-{
-	return true;
-}
-
-static bool is_write_fan53870_reg(struct device *dev, unsigned int reg)
-{
-	switch (reg) {
-	case 0x02 ... 0x0A:
+	case 0x02 ... 0x1D:
 		return true;
 	default:
 		return false;
@@ -163,13 +105,53 @@ static bool is_write_fan53870_reg(struct device *dev, unsigned int reg)
 
 static struct regmap_config  chip_regmap_config[CHIP_NUM_MAX] = {
 	CHIP_CONFIG(WL2868C, 8, 8, is_read_wl2868c_reg, is_write_wl2868c_reg, 0x25),
-	CHIP_CONFIG(ET5907, 8, 8, is_read_et5907_reg, is_write_et5907_reg, 0x1E),
-	CHIP_CONFIG(FAN53870, 8, 8, is_read_fan53870_reg, is_write_fan53870_reg, 0x1E),
 };
+
+int regmap_read_retry_3times(struct regmap *map, unsigned int reg, unsigned int *val)
+{
+	int ret = 0;
+	int read_retry = 3;
+	do {
+		ret = regmap_read(map, reg, val);
+		read_retry--;
+		REG_PRINT("vaccine regmap_read ret = %d times:%d, reg=0x%x", ret, read_retry, reg);
+	} while (ret && (read_retry > 0));
+	if (ret < 0) {
+		REG_PRINT("read reg:0x%x failed ret = %d, remain read_retry = %d", reg, ret, read_retry);
+	}
+	return ret;
+}
+
+int regmap_write_retry_3times(struct regmap *map, unsigned int reg, unsigned int val)
+{
+	int ret = 0;
+	int write_retry = 3;
+	do {
+		ret = regmap_write(map, reg, val);
+		write_retry--;
+		REG_PRINT("vaccine regmap_write ret = %d times:%d, reg=0x%x", ret, write_retry, reg);
+	} while (ret && (write_retry > 0));
+	if (ret < 0) {
+		REG_PRINT("write reg:0x%x val: 0x%X failed ret = %d, remain write_retry = %d", reg, val, ret, write_retry);
+	}
+	return ret;
+}
+
+static void wl2868c_reg_dump(struct regmap *wl2868c_regmap)
+{
+	int i;
+	unsigned int LDOx_reg_addr[19] = {0x10,0x11,0x12,0x13,0x14,0x15,0x16,0x17,0x18,0x19,0x1A,0x1B,0x1C,0x1D,0x20,0x21,0x22,0x23,0x24};
+	unsigned int LDOx_reg_val[19] = {0};
+	for (i = 0; i < 19; i++) {
+		regmap_read_retry_3times(wl2868c_regmap, LDOx_reg_addr[i], &LDOx_reg_val[i]);
+		REG_PRINT("read addr[%d]:0x%x = val:0x%x", i, LDOx_reg_addr[i], LDOx_reg_val[i]);
+	}
+	return;
+}
 
 static int  wl2868c_regulator_enable(struct regulator_dev *rdev)
 {
-	int ret = 0;
+	int ret = -1;
 	unsigned int current_bit, enable_bit;
 	struct chip_info *chip;
 	struct regmap *wl2868c_regmap;
@@ -181,21 +163,25 @@ static int  wl2868c_regulator_enable(struct regulator_dev *rdev)
 	mutex_lock(&i2c_control_mutex);
 	wl2868c_regmap = wl2868c_reg->regmap;
 	chip = wl2868c_reg->chip_info;
-	ret = regmap_read(wl2868c_regmap, chip->ldo_en_addr, &current_bit);
+	ret = regmap_read_retry_3times(wl2868c_regmap, chip->ldo_en_addr, &current_bit);
 	if (ret < 0) {
 		REG_PRINT("read ldo en reg failed");
-		return -EIO;
+		goto release_mutex;
 	}
 	enable_bit = 1 << (wl2868c_reg->channel_num);
 	current_bit |= enable_bit;
-	ret = regmap_write(wl2868c_regmap, chip->ldo_en_addr, current_bit);
+	ret = regmap_write_retry_3times(wl2868c_regmap, chip->ldo_en_addr, current_bit);
 	if (ret < 0) {
 		REG_PRINT("write ldo enable address failed");
-		return -EIO;
+		goto release_mutex;
 	}
 	REG_PRINT("Enable %s", wl2868c_reg->regulator_name);
 	mutex_unlock(&i2c_control_mutex);
 	return ret;
+
+release_mutex:
+	mutex_unlock(&i2c_control_mutex);
+	return -EIO;
 }
 
 static int  wl2868c_regulator_disable(struct regulator_dev *rdev)
@@ -212,21 +198,25 @@ static int  wl2868c_regulator_disable(struct regulator_dev *rdev)
 	mutex_lock(&i2c_control_mutex);
 	wl2868c_regmap = wl2868c_reg->regmap;
 	chip = wl2868c_reg->chip_info;
-	ret = regmap_read(wl2868c_regmap, chip->ldo_en_addr, &current_bit);
+	ret = regmap_read_retry_3times(wl2868c_regmap, chip->ldo_en_addr, &current_bit);
 	if (ret < 0) {
 		REG_PRINT("read ldo en reg failed");
-		return -EIO;
+		goto release_mutex;
 	}
 	disable_bit = ~(1 << wl2868c_reg->channel_num);
 	current_bit &= disable_bit;
 	REG_PRINT("disable %s", wl2868c_reg->regulator_name);
-	ret = regmap_write(wl2868c_regmap, chip->ldo_en_addr, current_bit);
+	ret = regmap_write_retry_3times(wl2868c_regmap, chip->ldo_en_addr, current_bit);
 	if (ret < 0) {
 		REG_PRINT("write ldo enable address failed");
-		return -EIO;
+		goto release_mutex;
 	}
 	mutex_unlock(&i2c_control_mutex);
 	return ret;
+
+release_mutex:
+	mutex_unlock(&i2c_control_mutex);
+	return -EIO;
 }
 
 static int  wl2868c_regulator_is_enabled(struct regulator_dev *rdev)
@@ -244,7 +234,8 @@ static int  wl2868c_regulator_is_enabled(struct regulator_dev *rdev)
 	wl2868c_regmap = wl2868c_reg->regmap;
 	chip = wl2868c_reg->chip_info;
 	enable_bit = 1 << (wl2868c_reg->channel_num);
-	ret = regmap_read(wl2868c_regmap, chip->ldo_en_addr, &reg_val);
+	ret = regmap_read_retry_3times(wl2868c_regmap, chip->ldo_en_addr, &reg_val);
+	REG_PRINT("vaccine is enable: regmap_read ret = %d, reg_val = 0x%x", ret, reg_val);
 	if (ret < 0) {
 		REG_PRINT("read ldo enable address failed");
 		return -EIO;
@@ -268,7 +259,8 @@ static int  wl2868c_regulator_get_voltage(struct regulator_dev *rdev)
 	chip = wl2868c_reg->chip_info;
 	reg_addr = chip->ldo_out_addr + wl2868c_reg->channel_num;
 	range = &chip->ldo_range[wl2868c_reg->channel_num];
-	ret = regmap_read(wl2868c_regmap, reg_addr, &volt);
+	ret = regmap_read_retry_3times(wl2868c_regmap, reg_addr, &volt);
+	REG_PRINT("vaccine get voltage ret: regmap_read ret = %d, volt = 0x%x", ret, volt);
 	if (ret < 0)
 		REG_PRINT("read voltage failed");
 
@@ -285,26 +277,6 @@ static int  wl2868c_regulator_get_voltage(struct regulator_dev *rdev)
 			return -EINVAL;
 		}
 	break;
-	case ET5907:
-		switch (wl2868c_reg->channel_num) {
-		case 0 ... 6 :
-			uV = range->min_uV + (volt & 0xFF) * range->uV_step;
-			break;
-		default:
-			return -EINVAL;
-		}
-	break;
-	case FAN53870:
-	switch (wl2868c_reg->channel_num) {
-		case 0 ... 1 :
-			uV = range->min_uV + ((volt & 0xFF) - 99) * range->uV_step;
-			break;
-		case 2 ... 6 :
-			uV = range->min_uV + ((volt & 0xFF) - 16) * range->uV_step;
-			break;
-		default:
-			return -EINVAL;
-		}
 	}
 	REG_PRINT("%s get voltage: %d uV", wl2868c_reg->regulator_name, uV);
 	return uV;
@@ -348,33 +320,13 @@ static int  wl2868c_regulator_set_voltage(struct regulator_dev *rdev,
 			return -EINVAL;
 		}
 	break;
-	case ET5907:
-		switch (wl2868c_reg->channel_num){
-		case 0 ... 6 :
-			reg_val = (round_uV - range->min_uV) / range->uV_step;
-			break;
-		default:
-			return -EINVAL;
-		}
-	break;
-	case FAN53870:
-		switch (wl2868c_reg->channel_num){
-		case 0 ... 1 :
-			reg_val = (round_uV - range->min_uV) / range->uV_step + 99;
-			break;
-		case 2 ... 6 :
-			reg_val = (round_uV - range->min_uV) / range->uV_step + 16;
-			break;
-		default:
-			return -EINVAL;
-		}
 	}
-	ret = regmap_write(wl2868c_regmap, volt_reg, reg_val);
+	ret = regmap_write_retry_3times(wl2868c_regmap, volt_reg, reg_val);
 	if (ret < 0) {
-		REG_PRINT("%s set voltage failed", wl2868c_reg->regulator_name);
-		return -EIO;
+		wl2868c_reg_dump(wl2868c_regmap);
+		return ret;
 	}
-	REG_PRINT("%s set voltage: %d uV", wl2868c_reg->regulator_name, round_uV);
+	REG_PRINT("vaccine set voltage ret = %d, %s set voltage: %d uV, write value: 0x%x", ret, wl2868c_reg->regulator_name, round_uV, reg_val);
 	return ret;
 }
 
@@ -449,6 +401,7 @@ static int wl2868c_i2c_probe(struct i2c_client *client)
 	const unsigned int max_try_time = 10;
 	int try_time = 0;
 	int chip_id;
+	unsigned int LDOx_OCP_CTL[7] = {0x11,0x13,0x15,0x17,0x19,0x1B,0x1D};
 
 	if (!client) {
 		pr_info("pmic i2c client is NULL");
@@ -474,6 +427,7 @@ static int wl2868c_i2c_probe(struct i2c_client *client)
 	} else {
 		REG_PRINT("no pinctrl configuration");
 	}
+	usleep_range(5000,5500);
 
 	for (;try_time < max_try_time; try_time++) {
 		for (i = 0; i < CHIP_NUM_MAX; i++) {
@@ -521,10 +475,18 @@ static int wl2868c_i2c_probe(struct i2c_client *client)
 
 	if (CI == 0)
 	{
-		ret_ldo7 = regmap_write(wl2868c_regmap, 0x09, 0x25);//just for wl2868c
+		ret_ldo7 = regmap_write_retry_3times(wl2868c_regmap, 0x09, 0x25);//just for wl2868c
+		REG_PRINT("vaccine i2c probe: regmap_write ret = %d", ret_ldo7);
 		if (ret_ldo7 < 0) {
 			REG_PRINT("write 7ch-ldo enable volt failed");
 			return -EIO;
+		}
+		for (i = 0; i < REGULATOR_MAX; i++) {
+			ret = regmap_write_retry_3times(wl2868c_regmap, LDOx_OCP_CTL[i], 0x80);
+			if (ret < 0) {
+				REG_PRINT("write LDOx_OCP_CTL[%d] failed:%d", i, ret);
+			}
+			REG_PRINT("vaccine i2c probe: OCP regmap_write ret = %d", ret);
 		}
 	}
 	mutex_init(&i2c_control_mutex);
