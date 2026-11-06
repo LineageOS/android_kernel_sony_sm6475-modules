@@ -57,11 +57,11 @@ def spu_driver_module_entry(hdrs = []):
 
 def define_target_variant_modules(target, variant, registry, modules, config_options = []):
     kernel_build = "{}_{}".format(target, variant)
-    kernel_build_label = "//msm-kernel:{}".format(kernel_build)
+    kernel_build_label = "//vendor/qcom/kernel:{}".format(kernel_build)
     modules = [registry.get(module_name) for module_name in modules]
     options = _get_kernel_build_options(modules, config_options)
     formatter = lambda strs : [s.replace("%b", kernel_build).replace("%t", target) for s in strs]
-    headers = ["//msm-kernel:all_headers"] + registry.hdrs
+    headers = ["//vendor/qcom/kernel:all_headers"] + registry.hdrs
     all_module_rules = []
 
     for module in modules:
@@ -98,3 +98,4 @@ def define_target_variant_modules(target, variant, registry, modules, config_opt
 def define_consolidate_gki_modules(target, registry, modules, config_options = []):
     define_target_variant_modules(target, "consolidate", registry, modules, config_options)
     define_target_variant_modules(target, "gki", registry, modules, config_options)
+    define_target_variant_modules(target, "perf", registry, modules, config_options)

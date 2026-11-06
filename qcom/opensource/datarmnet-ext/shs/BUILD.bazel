@@ -1,5 +1,7 @@
 load(":define_shs.bzl", "define_shs")
 
+package(default_visibility = ["//visibility:public"])
+
 define_shs("pineapple", "consolidate")
 define_shs("pineapple", "perf")
 
@@ -11,3 +13,5 @@ define_shs("parrot", "perf")
 
 define_shs("tuna", "consolidate")
 define_shs("tuna", "perf")
+
+define_shs("waipio", "perf")

@@ -21,10 +21,18 @@ define_modules("monaco", "consolidate")
 
 define_modules("monaco", "perf")
 
+define_modules("waipio", "perf")
+
 package(
     default_visibility = [
         "//visibility:public",
     ],
+)
+
+ddk_headers(
+    name = "dataipa_uapi_headers",
+    hdrs = glob(["drivers/platform/msm/include/uapi/linux/*.h"]),
+    includes = ["drivers/platform/msm/include/uapi"],
 )
 
 ddk_headers(
